@@ -1,6 +1,12 @@
 import React from "react";
 import ReactDOM from "react-dom";
-import { ExternalLink, Gauge, Share2 } from "lucide-react";
+import {
+  ChevronsDown,
+  ChevronsUp,
+  ExternalLink,
+  Gauge,
+  Share2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
@@ -37,6 +43,8 @@ interface ConversationNameContextMenuProps {
   onCopyShareLink?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onExportTranscript?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDownloadConversation?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onExpandAll?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onCollapseAll?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   shareUrl?: string;
   position?: "top" | "bottom";
   /**
@@ -100,6 +108,8 @@ export function ConversationNameContextMenu({
   onCopyShareLink,
   onExportTranscript,
   onDownloadConversation,
+  onExpandAll,
+  onCollapseAll,
   shareUrl,
   position = "bottom",
   anchorRef,
@@ -252,6 +262,31 @@ export function ConversationNameContextMenu({
           <ConversationNameContextMenuIconText
             icon={<DownloadIcon width={16} height={16} />}
             text={t(I18nKey.BUTTON$DOWNLOAD_CONVERSATION_DATA)}
+          />
+        </ContextMenuListItem>
+      )}
+
+      {(onExpandAll || onCollapseAll) && (
+        <Divider testId="separator-expand-collapse" inset="menu" />
+      )}
+
+      {onExpandAll && (
+        <ContextMenuListItem testId="expand-all-button" onClick={onExpandAll}>
+          <ConversationNameContextMenuIconText
+            icon={<ChevronsDown width={16} height={16} />}
+            text={t(I18nKey.TRANSCRIPT$EXPAND_ALL)}
+          />
+        </ContextMenuListItem>
+      )}
+
+      {onCollapseAll && (
+        <ContextMenuListItem
+          testId="collapse-all-button"
+          onClick={onCollapseAll}
+        >
+          <ConversationNameContextMenuIconText
+            icon={<ChevronsUp width={16} height={16} />}
+            text={t(I18nKey.TRANSCRIPT$COLLAPSE_ALL)}
           />
         </ContextMenuListItem>
       )}

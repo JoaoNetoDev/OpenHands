@@ -9,6 +9,7 @@ import {
   isObservationEvent,
 } from "#/types/agent-server/type-guards";
 import { I18nKey } from "#/i18n/declaration";
+import { useTranscriptDetailStore } from "#/stores/transcript-detail-store";
 import { getEventContent } from "../event-content-helpers/get-event-content";
 import { IsInEventGroupContext } from "../../../features/chat/is-in-event-group-context";
 import { PathInteractiveContext } from "../../../features/chat/path-component";
@@ -63,9 +64,20 @@ export function EventGroup({
   children,
 }: EventGroupProps) {
   const { t } = useTranslation("openhands");
-  const [expanded, setExpanded] = React.useState(false);
+  const expandByDefault = useTranscriptDetailStore(
+    (state) => state.expandByDefault,
+  );
+  const resetSignal = useTranscriptDetailStore((state) => state.resetSignal);
+  const resetValue = useTranscriptDetailStore((state) => state.resetValue);
+  const [expanded, setExpanded] = React.useState(expandByDefault);
   const contentId = React.useId();
   const buttonId = `${contentId}-toggle`;
+
+  React.useEffect(() => {
+    if (resetSignal > 0) {
+      setExpanded(resetValue);
+    }
+  }, [resetSignal, resetValue]);
 
   if (events.length === 0) {
     return null;

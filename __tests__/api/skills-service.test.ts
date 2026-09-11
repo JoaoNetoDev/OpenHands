@@ -61,7 +61,7 @@ afterEach(() => {
 });
 
 describe("SkillsService.getSkills against the agent-server backend", () => {
-  it("requests only user/project skills from agent-server (load_public: false) and appends the bundled public catalog", async () => {
+  it("requests user/project/public skills from agent-server (load_public: true, so registered-marketplace skills load) and appends the bundled public catalog", async () => {
     const userSkill = {
       name: "my-custom-skill",
       type: "knowledge",
@@ -72,15 +72,18 @@ describe("SkillsService.getSkills against the agent-server backend", () => {
     };
     mockGetSkills.mockResolvedValue({
       skills: [userSkill],
-      sources: { sandbox: 0, sdk_base: 0, org: 0, project: 0 },
+      sources: { sandbox: 0, sdk_base: 0, registered_marketplaces: 0, org: 0, project: 0 },
     });
 
     const skills = await SkillsService.getSkills();
 
-    // Agent-server is asked only for user/project skills, not public.
+    // Agent-server is asked for public skills too -- load_public also gates
+    // whether its registered marketplace skills load (see skills-service.ts
+    // comment), so it can't stay false just because we already bundle a
+    // public catalog at build time.
     expect(mockGetSkills).toHaveBeenCalledTimes(1);
     expect(mockGetSkills.mock.calls[0]?.[0]).toMatchObject({
-      load_public: false,
+      load_public: true,
       load_user: true,
       load_project: true,
       load_org: false,
@@ -96,6 +99,31 @@ describe("SkillsService.getSkills against the agent-server backend", () => {
       expect(publicNames).toContain(entry.name);
     }
     expect(skills.slice(1).every((s) => s.source === "public")).toBe(true);
+  });
+
+  it("prefers an agent-server skill over a bundled public skill with the same name", async () => {
+    const overridingSkill = {
+      name: MOCK_PUBLIC_CATALOG[0]!.name,
+      type: "knowledge",
+      content: "overridden content",
+      triggers: [],
+      source: "user",
+      is_agentskills_format: false,
+    };
+    mockGetSkills.mockResolvedValue({
+      skills: [overridingSkill],
+      sources: { sandbox: 0, sdk_base: 0, registered_marketplaces: 0, org: 0, project: 0 },
+    });
+
+    const skills = await SkillsService.getSkills();
+
+    // Only one entry for that name, and it's the agent-server's version.
+    const matches = skills.filter((s) => s.name === MOCK_PUBLIC_CATALOG[0]!.name);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.content).toBe("overridden content");
+
+    // The rest of the bundled catalog is still appended.
+    expect(skills).toHaveLength(MOCK_PUBLIC_CATALOG.length);
   });
 
   it("returns only bundled public skills when agent-server is unreachable", async () => {

@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { ExternalLink } from "lucide-react";
-import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
+import { ExtensionsPageLayout } from "#/components/features/skills/extensions-page-layout";
 import { AddCanvasExtensionModal } from "#/components/features/canvas-extensions/add-canvas-extension-modal";
 import { CanvasExtensionCard } from "#/components/features/canvas-extensions/canvas-extension-card";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -18,8 +18,6 @@ import {
   useUninstallCanvasExtension,
 } from "#/hooks/mutation/use-manage-canvas-extensions";
 import { I18nKey } from "#/i18n/declaration";
-import { cn } from "#/utils/utils";
-import { settingsLikeMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 import {
   extensionModuleCardGridClassName,
   extensionModuleCardGridContainerClassName,
@@ -79,12 +77,8 @@ export default function CanvasExtensionsScreen() {
         : "";
 
   return (
-    <div
-      data-testid="canvas-extensions-screen"
-      className="flex h-full gap-4 md:gap-6 md:pl-8 lg:gap-10 lg:pl-10"
-    >
-      <ExtensionsNavigation />
-      <main className={cn(settingsLikeMainScrollClassName, "h-full")}>
+    <ExtensionsPageLayout
+      header={
         <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
           <div className="flex min-w-0 items-start justify-between gap-4">
             <div className="min-w-0 space-y-1">
@@ -121,85 +115,86 @@ export default function CanvasExtensionsScreen() {
           <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-sm text-amber-100">
             {t(I18nKey.SETTINGS$APPS_TRUST_NOTICE)}
           </div>
+        </div>
+      }
+    >
+      <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
+        <h3 className="text-base font-semibold text-foreground">
+          {t(I18nKey.SETTINGS$APPS_INSTALLED)}
+        </h3>
 
-          <h3 className="text-base font-semibold text-foreground">
-            {t(I18nKey.SETTINGS$APPS_INSTALLED)}
-          </h3>
-
-          {unsupported ? (
-            <div className={extensionModuleEmptyStateClassName}>
-              <h3 className="text-sm font-semibold text-white">
-                {t(I18nKey.SETUP$UNAVAILABLE_TITLE)}
-              </h3>
-              <p className="mt-2 text-sm text-tertiary-light">
-                {isCanvasExtensionsUnsupportedError(query.error)
-                  ? query.error.message
-                  : backend.kind === "cloud"
-                    ? new CanvasExtensionsUnsupportedError("cloud-backend")
-                        .message
-                    : new CanvasExtensionsUnsupportedError("no-backend")
-                        .message}
-              </p>
-            </div>
-          ) : query.isLoading ? (
-            <div className="flex flex-col gap-4">
-              {[1, 2].map((index) => (
-                <div
-                  key={index}
-                  className="h-40 animate-pulse rounded-xl bg-base-secondary"
+        {unsupported ? (
+          <div className={extensionModuleEmptyStateClassName}>
+            <h3 className="text-sm font-semibold text-white">
+              {t(I18nKey.SETUP$UNAVAILABLE_TITLE)}
+            </h3>
+            <p className="mt-2 text-sm text-tertiary-light">
+              {isCanvasExtensionsUnsupportedError(query.error)
+                ? query.error.message
+                : backend.kind === "cloud"
+                  ? new CanvasExtensionsUnsupportedError("cloud-backend")
+                      .message
+                  : new CanvasExtensionsUnsupportedError("no-backend").message}
+            </p>
+          </div>
+        ) : query.isLoading ? (
+          <div className="flex flex-col gap-4">
+            {[1, 2].map((index) => (
+              <div
+                key={index}
+                className="h-40 animate-pulse rounded-xl bg-base-secondary"
+              />
+            ))}
+          </div>
+        ) : query.isError ? (
+          <div className={extensionModuleEmptyStateClassName}>
+            <p className="text-sm text-tertiary-light">
+              {query.error instanceof Error
+                ? query.error.message
+                : t(I18nKey.ERROR$GENERIC)}
+            </p>
+            <BrandButton
+              type="button"
+              variant="secondary"
+              className="mt-4"
+              onClick={() => void query.refetch()}
+            >
+              {t(I18nKey.AUTOMATIONS$ERROR_RETRY)}
+            </BrandButton>
+          </div>
+        ) : query.data?.length ? (
+          <div className={extensionModuleCardGridContainerClassName}>
+            <div className={extensionModuleCardGridClassName}>
+              {query.data.map((extension) => (
+                <CanvasExtensionCard
+                  key={extension.name}
+                  extension={extension}
+                  isBusy={isBusy}
+                  onToggle={() => {
+                    if (extension.enabled) {
+                      setEnabled.mutate({
+                        name: extension.name,
+                        enabled: false,
+                      });
+                    } else {
+                      setPendingAction({ type: "enable", extension });
+                    }
+                  }}
+                  onUninstall={() =>
+                    setPendingAction({ type: "uninstall", extension })
+                  }
                 />
               ))}
             </div>
-          ) : query.isError ? (
-            <div className={extensionModuleEmptyStateClassName}>
-              <p className="text-sm text-tertiary-light">
-                {query.error instanceof Error
-                  ? query.error.message
-                  : t(I18nKey.ERROR$GENERIC)}
-              </p>
-              <BrandButton
-                type="button"
-                variant="secondary"
-                className="mt-4"
-                onClick={() => void query.refetch()}
-              >
-                {t(I18nKey.AUTOMATIONS$ERROR_RETRY)}
-              </BrandButton>
-            </div>
-          ) : query.data?.length ? (
-            <div className={extensionModuleCardGridContainerClassName}>
-              <div className={extensionModuleCardGridClassName}>
-                {query.data.map((extension) => (
-                  <CanvasExtensionCard
-                    key={extension.name}
-                    extension={extension}
-                    isBusy={isBusy}
-                    onToggle={() => {
-                      if (extension.enabled) {
-                        setEnabled.mutate({
-                          name: extension.name,
-                          enabled: false,
-                        });
-                      } else {
-                        setPendingAction({ type: "enable", extension });
-                      }
-                    }}
-                    onUninstall={() =>
-                      setPendingAction({ type: "uninstall", extension })
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className={extensionModuleEmptyStateClassName}>
-              <p className="text-sm text-tertiary-light">
-                {t(I18nKey.SETTINGS$APPS_EMPTY)}
-              </p>
-            </div>
-          )}
-        </div>
-      </main>
+          </div>
+        ) : (
+          <div className={extensionModuleEmptyStateClassName}>
+            <p className="text-sm text-tertiary-light">
+              {t(I18nKey.SETTINGS$APPS_EMPTY)}
+            </p>
+          </div>
+        )}
+      </div>
 
       {showAddModal ? (
         <AddCanvasExtensionModal onClose={() => setShowAddModal(false)} />
@@ -217,6 +212,6 @@ export default function CanvasExtensionsScreen() {
           isConfirming={isBusy}
         />
       ) : null}
-    </div>
+    </ExtensionsPageLayout>
   );
 }

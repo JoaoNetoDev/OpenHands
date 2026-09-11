@@ -21,6 +21,7 @@ import { cn } from "#/utils/utils";
 import { modalTitleLgClassName } from "#/utils/modal-classes";
 import { BackendFormModal } from "./backend-form-modal";
 import { BackendRow } from "./backend-row";
+import { BackendSyncSection } from "./backend-sync-section";
 import { DeviceFlowAuth } from "./device-flow-auth";
 
 interface ManageBackendsModalProps {
@@ -65,8 +66,14 @@ export function ManageBackendsModal({
   recoveryMode = false,
 }: ManageBackendsModalProps) {
   const { t } = useTranslation("openhands");
-  const { backends, active, removeBackend, setActive, updateBackend } =
-    useActiveBackendContext();
+  const {
+    backends,
+    active,
+    addBackend,
+    removeBackend,
+    setActive,
+    updateBackend,
+  } = useActiveBackendContext();
   const healthByBackendId = useBackendsHealth(backends, {
     probeDisabledOnce: true,
   });
@@ -194,6 +201,13 @@ export function ManageBackendsModal({
               )}
             </div>
           </div>
+
+          {isLockedToCloud || recoveryMode ? null : (
+            <BackendSyncSection
+              backends={backends}
+              onImportBackend={(backend) => addBackend(backend)}
+            />
+          )}
 
           <div className="flex justify-end gap-2 p-5">
             {isLockedToCloud ? (

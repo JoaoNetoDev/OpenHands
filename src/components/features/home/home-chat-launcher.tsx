@@ -2,7 +2,11 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { CustomChatInput } from "#/components/features/chat/custom-chat-input";
-import { useActiveBackend } from "#/contexts/active-backend-context";
+import {
+  useActiveBackend,
+  useActiveBackendContext,
+} from "#/contexts/active-backend-context";
+import { useChatInputModelState } from "#/hooks/use-chat-input-model-state";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
@@ -71,6 +75,8 @@ export function HomeChatLauncher() {
   const llmBlocked = !isLlmConfigLoading && !isLlmConfigured;
   const { images, files, imagesMarkedUploadAsFile, clearAllFiles } =
     useConversationStore();
+  const { currentModelId } = useChatInputModelState();
+  const { backends } = useActiveBackendContext();
   const { handleUpload } = useChatAttachmentUpload();
   const { error: workspacesError } = useLocalWorkspaces({ enabled: isLocal });
   const workspacesUnsupportedMessage = isLocal
@@ -195,6 +201,8 @@ export function HomeChatLauncher() {
                 files: attachmentSnapshot.files,
                 imagesMarkedUploadAsFile,
                 t,
+                modelId: currentModelId,
+                backends,
               });
               clearAllFiles();
             } catch (error) {

@@ -9570,6 +9570,54 @@
     "uk": "ДОДАНО НОВІ ФАЙЛИ",
     "ca": "FITXERS NOUS AFEGITS"
   },
+  "CHAT_INTERFACE$AUGMENTED_PROMPT_IMAGES_TITLE": {
+    "en": "IMAGE DESCRIPTIONS (auto-converted, model has no vision support)",
+    "pt": "DESCRIÇÕES DE IMAGEM (convertidas automaticamente, o modelo não tem suporte a visão)"
+  },
+  "CHAT_INTERFACE$IMAGE2TEXT_FAILED": {
+    "en": "Failed to convert image to text.",
+    "pt": "Falha ao converter a imagem em texto."
+  },
+  "MODEL$VISION_SECTION_TITLE": {
+    "en": "Vision support",
+    "pt": "Suporte a visão"
+  },
+  "MODEL$VISION_UNSUPPORTED_TOGGLE": {
+    "en": "This model doesn't support vision",
+    "pt": "Este modelo não tem suporte a visão"
+  },
+  "MODEL$VISION_CONVERTER_LABEL": {
+    "en": "Convert images to text using",
+    "pt": "Converter imagens em texto usando"
+  },
+  "MODEL$VISION_CONVERTER_TYPE_BACKEND": {
+    "en": "Another registered backend",
+    "pt": "Outro backend cadastrado"
+  },
+  "MODEL$VISION_CONVERTER_TYPE_ENDPOINT": {
+    "en": "External endpoint",
+    "pt": "Endpoint externo"
+  },
+  "MODEL$VISION_CONVERTER_BACKEND_LABEL": {
+    "en": "Backend",
+    "pt": "Backend"
+  },
+  "MODEL$VISION_CONVERTER_MODEL_LABEL": {
+    "en": "Model",
+    "pt": "Modelo"
+  },
+  "MODEL$VISION_CONVERTER_URL_LABEL": {
+    "en": "Endpoint URL",
+    "pt": "URL do endpoint"
+  },
+  "MODEL$VISION_CONVERTER_API_KEY_LABEL": {
+    "en": "API key (optional)",
+    "pt": "Chave de API (opcional)"
+  },
+  "MODEL$VISION_SAVE": {
+    "en": "Save",
+    "pt": "Salvar"
+  },
   "CHAT_INTERFACE$DISCONNECTED": {
     "en": "Disconnected",
     "ja": "切断されました",
@@ -14126,7 +14174,6 @@
     "uk": "Повідомлено користувацькі метадані завдання.",
     "ca": "S'han informat metadades personalitzades de la tasca."
   },
-
   "AUTOMATIONS$DETAIL$VIEW_CONVERSATION_FOR_RUN": {
     "en": "View conversation for run at {{timestamp}}",
     "ja": "{{timestamp}} の実行の会話を表示",
@@ -14144,7 +14191,6 @@
     "uk": "Переглянути розмову для запуску о {{timestamp}}",
     "ca": "Mostra la conversa de l'execució a {{timestamp}}"
   },
-
   "AUTOMATIONS$DETAIL$PHASE": {
     "ar": "المرحلة",
     "ca": "Fase",
@@ -32539,6 +32585,14 @@
     "uk": "Згорнути мислення",
     "ca": "Plegar pensament"
   },
+  "TRANSCRIPT$EXPAND_ALL": {
+    "en": "Expand all",
+    "pt": "Expandir tudo"
+  },
+  "TRANSCRIPT$COLLAPSE_ALL": {
+    "en": "Collapse all",
+    "pt": "Recolher tudo"
+  },
   "MCP$LIBRARY_TITLE": {
     "en": "Library",
     "ja": "ライブラリ",
@@ -41752,5 +41806,243 @@
     "uk": "Попередній перегляд зображення в повному розмірі",
     "zh-CN": "原始尺寸图片预览",
     "zh-TW": "原始尺寸圖片預覽"
+  },
+  "BACKEND$SYNC_TITLE": {
+    "en": "Sync backends across devices",
+    "pt": "Sincronizar backends entre dispositivos",
+    "ja": "デバイス間でバックエンドを同期",
+    "zh-CN": "跨设备同步后端",
+    "zh-TW": "跨裝置同步後端",
+    "ko-KR": "기기 간 백엔드 동기화",
+    "no": "Synkroniser backender på tvers av enheter",
+    "it": "Sincronizza i backend tra dispositivi",
+    "es": "Sincronizar backends entre dispositivos",
+    "ar": "مزامنة الخوادم الخلفية عبر الأجهزة",
+    "fr": "Synchroniser les backends entre appareils",
+    "tr": "Backend'leri cihazlar arasında senkronize et",
+    "de": "Backends geräteübergreifend synchronisieren",
+    "uk": "Синхронізувати бекенди між пристроями",
+    "ca": "Sincronitza els backends entre dispositius"
+  },
+  "BACKEND$EXPORT_FILE": {
+    "en": "Export to file",
+    "pt": "Exportar para arquivo",
+    "ja": "ファイルにエクスポート",
+    "zh-CN": "导出到文件",
+    "zh-TW": "匯出至檔案",
+    "ko-KR": "파일로 내보내기",
+    "no": "Eksporter til fil",
+    "it": "Esporta su file",
+    "es": "Exportar a archivo",
+    "ar": "تصدير إلى ملف",
+    "fr": "Exporter vers un fichier",
+    "tr": "Dosyaya aktar",
+    "de": "In Datei exportieren",
+    "uk": "Експортувати у файл",
+    "ca": "Exporta a un fitxer"
+  },
+  "BACKEND$IMPORT_FILE": {
+    "en": "Import from file",
+    "pt": "Importar de arquivo",
+    "ja": "ファイルからインポート",
+    "zh-CN": "从文件导入",
+    "zh-TW": "從檔案匯入",
+    "ko-KR": "파일에서 가져오기",
+    "no": "Importer fra fil",
+    "it": "Importa da file",
+    "es": "Importar desde archivo",
+    "ar": "استيراد من ملف",
+    "fr": "Importer depuis un fichier",
+    "tr": "Dosyadan içe aktar",
+    "de": "Aus Datei importieren",
+    "uk": "Імпортувати з файлу",
+    "ca": "Importa des d'un fitxer"
+  },
+  "BACKEND$IMPORT_FILE_ERROR": {
+    "en": "Couldn't import file: {{error}}",
+    "pt": "Não foi possível importar o arquivo: {{error}}",
+    "ja": "ファイルをインポートできませんでした: {{error}}",
+    "zh-CN": "无法导入文件：{{error}}",
+    "zh-TW": "無法匯入檔案：{{error}}",
+    "ko-KR": "파일을 가져올 수 없습니다: {{error}}",
+    "no": "Kunne ikke importere fil: {{error}}",
+    "it": "Impossibile importare il file: {{error}}",
+    "es": "No se pudo importar el archivo: {{error}}",
+    "ar": "تعذر استيراد الملف: {{error}}",
+    "fr": "Impossible d'importer le fichier : {{error}}",
+    "tr": "Dosya içe aktarılamadı: {{error}}",
+    "de": "Datei konnte nicht importiert werden: {{error}}",
+    "uk": "Не вдалося імпортувати файл: {{error}}",
+    "ca": "No s'ha pogut importar el fitxer: {{error}}"
+  },
+  "BACKEND$IMPORT_FILE_SUCCESS": {
+    "en": "{{count}} backend(s) imported.",
+    "pt": "{{count}} backend(s) importado(s).",
+    "ja": "{{count}} 件のバックエンドをインポートしました。",
+    "zh-CN": "已导入 {{count}} 个后端。",
+    "zh-TW": "已匯入 {{count}} 個後端。",
+    "ko-KR": "백엔드 {{count}}개를 가져왔습니다.",
+    "no": "{{count}} backend(er) importert.",
+    "it": "{{count}} backend importati.",
+    "es": "{{count}} backend(s) importado(s).",
+    "ar": "تم استيراد {{count}} خادم خلفي.",
+    "fr": "{{count}} backend(s) importé(s).",
+    "tr": "{{count}} backend içe aktarıldı.",
+    "de": "{{count}} Backend(s) importiert.",
+    "uk": "Імпортовано {{count}} бекенд(ів).",
+    "ca": "{{count}} backend(s) importats."
+  },
+  "BACKEND$VAULT_PASSWORD_LABEL": {
+    "en": "Vault password",
+    "pt": "Senha do cofre",
+    "ja": "保管庫のパスワード",
+    "zh-CN": "保管库密码",
+    "zh-TW": "保管庫密碼",
+    "ko-KR": "볼트 비밀번호",
+    "no": "Passord for hvelv",
+    "it": "Password del vault",
+    "es": "Contraseña de la bóveda",
+    "ar": "كلمة مرور الخزنة",
+    "fr": "Mot de passe du coffre-fort",
+    "tr": "Kasa parolası",
+    "de": "Tresor-Passwort",
+    "uk": "Пароль сховища",
+    "ca": "Contrasenya de la caixa forta"
+  },
+  "BACKEND$VAULT_PASSWORD_PLACEHOLDER": {
+    "en": "Password used to encrypt/decrypt",
+    "pt": "Senha usada para criptografar/descriptografar",
+    "ja": "暗号化・復号に使うパスワード",
+    "zh-CN": "用于加密/解密的密码",
+    "zh-TW": "用於加密／解密的密碼",
+    "ko-KR": "암호화/복호화에 사용하는 비밀번호",
+    "no": "Passord brukt til kryptering/dekryptering",
+    "it": "Password usata per crittografare/decrittografare",
+    "es": "Contraseña usada para cifrar/descifrar",
+    "ar": "كلمة المرور المستخدمة للتشفير/فك التشفير",
+    "fr": "Mot de passe utilisé pour chiffrer/déchiffrer",
+    "tr": "Şifreleme/şifre çözme için kullanılan parola",
+    "de": "Passwort zum Ver-/Entschlüsseln",
+    "uk": "Пароль для шифрування/розшифрування",
+    "ca": "Contrasenya per xifrar/desxifrar"
+  },
+  "BACKEND$VAULT_SAVE": {
+    "en": "Save to vault",
+    "pt": "Salvar no cofre",
+    "ja": "保管庫に保存",
+    "zh-CN": "保存到保管库",
+    "zh-TW": "儲存至保管庫",
+    "ko-KR": "볼트에 저장",
+    "no": "Lagre til hvelv",
+    "it": "Salva nel vault",
+    "es": "Guardar en la bóveda",
+    "ar": "حفظ في الخزنة",
+    "fr": "Enregistrer dans le coffre-fort",
+    "tr": "Kasaya kaydet",
+    "de": "Im Tresor speichern",
+    "uk": "Зберегти у сховищі",
+    "ca": "Desa a la caixa forta"
+  },
+  "BACKEND$VAULT_LOAD": {
+    "en": "Load from vault",
+    "pt": "Carregar do cofre",
+    "ja": "保管庫から読み込む",
+    "zh-CN": "从保管库加载",
+    "zh-TW": "從保管庫載入",
+    "ko-KR": "볼트에서 불러오기",
+    "no": "Last inn fra hvelv",
+    "it": "Carica dal vault",
+    "es": "Cargar desde la bóveda",
+    "ar": "تحميل من الخزنة",
+    "fr": "Charger depuis le coffre-fort",
+    "tr": "Kasadan yükle",
+    "de": "Aus Tresor laden",
+    "uk": "Завантажити зі сховища",
+    "ca": "Carrega des de la caixa forta"
+  },
+  "BACKEND$VAULT_SAVE_SUCCESS": {
+    "en": "Backends saved to the encrypted vault.",
+    "pt": "Backends salvos no cofre criptografado.",
+    "ja": "バックエンドを暗号化された保管庫に保存しました。",
+    "zh-CN": "后端已保存到加密保管库。",
+    "zh-TW": "後端已儲存至加密保管庫。",
+    "ko-KR": "백엔드가 암호화된 볼트에 저장되었습니다.",
+    "no": "Backender lagret i det krypterte hvelvet.",
+    "it": "Backend salvati nel vault crittografato.",
+    "es": "Backends guardados en la bóveda cifrada.",
+    "ar": "تم حفظ الخوادم الخلفية في الخزنة المشفرة.",
+    "fr": "Backends enregistrés dans le coffre-fort chiffré.",
+    "tr": "Backend'ler şifreli kasaya kaydedildi.",
+    "de": "Backends im verschlüsselten Tresor gespeichert.",
+    "uk": "Бекенди збережено в зашифрованому сховищі.",
+    "ca": "Backends desats a la caixa forta xifrada."
+  },
+  "BACKEND$VAULT_LOAD_SUCCESS": {
+    "en": "{{count}} backend(s) loaded from the vault.",
+    "pt": "{{count}} backend(s) carregado(s) do cofre.",
+    "ja": "保管庫から {{count}} 件のバックエンドを読み込みました。",
+    "zh-CN": "已从保管库加载 {{count}} 个后端。",
+    "zh-TW": "已從保管庫載入 {{count}} 個後端。",
+    "ko-KR": "볼트에서 백엔드 {{count}}개를 불러왔습니다.",
+    "no": "{{count}} backend(er) lastet inn fra hvelvet.",
+    "it": "{{count}} backend caricati dal vault.",
+    "es": "{{count}} backend(s) cargado(s) desde la bóveda.",
+    "ar": "تم تحميل {{count}} خادم خلفي من الخزنة.",
+    "fr": "{{count}} backend(s) chargé(s) depuis le coffre-fort.",
+    "tr": "Kasadan {{count}} backend yüklendi.",
+    "de": "{{count}} Backend(s) aus dem Tresor geladen.",
+    "uk": "Завантажено {{count}} бекенд(ів) зі сховища.",
+    "ca": "{{count}} backend(s) carregats de la caixa forta."
+  },
+  "BACKEND$VAULT_NOT_FOUND": {
+    "en": "No vault found for this password.",
+    "pt": "Nenhum cofre encontrado para essa senha.",
+    "ja": "このパスワードに対応する保管庫が見つかりません。",
+    "zh-CN": "未找到与该密码对应的保管库。",
+    "zh-TW": "找不到與此密碼對應的保管庫。",
+    "ko-KR": "이 비밀번호에 해당하는 볼트가 없습니다.",
+    "no": "Fant ikke noe hvelv for dette passordet.",
+    "it": "Nessun vault trovato per questa password.",
+    "es": "No se encontró ninguna bóveda para esta contraseña.",
+    "ar": "لم يتم العثور على خزنة لهذه كلمة المرور.",
+    "fr": "Aucun coffre-fort trouvé pour ce mot de passe.",
+    "tr": "Bu parola için kasa bulunamadı.",
+    "de": "Kein Tresor für dieses Passwort gefunden.",
+    "uk": "Сховище для цього пароля не знайдено.",
+    "ca": "No s'ha trobat cap caixa forta per a aquesta contrasenya."
+  },
+  "BACKEND$VAULT_ERROR": {
+    "en": "Vault request failed. Wrong password, or the vault service is unreachable.",
+    "pt": "Falha na requisição do cofre. Senha errada, ou o serviço do cofre está inacessível.",
+    "ja": "保管庫へのリクエストに失敗しました。パスワードが違うか、保管庫サービスに到達できません。",
+    "zh-CN": "保管库请求失败。密码错误，或保管库服务不可达。",
+    "zh-TW": "保管庫請求失敗。密碼錯誤，或保管庫服務無法連線。",
+    "ko-KR": "볼트 요청에 실패했습니다. 비밀번호가 틀렸거나 볼트 서비스에 연결할 수 없습니다.",
+    "no": "Forespørsel til hvelvet mislyktes. Feil passord, eller hvelvtjenesten er utilgjengelig.",
+    "it": "Richiesta al vault non riuscita. Password errata o servizio vault non raggiungibile.",
+    "es": "Falló la solicitud a la bóveda. Contraseña incorrecta o el servicio de la bóveda no está disponible.",
+    "ar": "فشل طلب الخزنة. كلمة مرور خاطئة، أو خدمة الخزنة غير متاحة.",
+    "fr": "La requête vers le coffre-fort a échoué. Mot de passe incorrect ou service indisponible.",
+    "tr": "Kasa isteği başarısız oldu. Yanlış parola veya kasa hizmetine ulaşılamıyor.",
+    "de": "Tresor-Anfrage fehlgeschlagen. Falsches Passwort oder der Tresordienst ist nicht erreichbar.",
+    "uk": "Запит до сховища не вдався. Неправильний пароль або сервіс сховища недоступний.",
+    "ca": "La sol·licitud a la caixa forta ha fallat. Contrasenya incorrecta o el servei no és disponible."
+  },
+  "BACKEND$VAULT_PASSWORD_REQUIRED": {
+    "en": "Enter a password first.",
+    "pt": "Digite uma senha primeiro.",
+    "ja": "先にパスワードを入力してください。",
+    "zh-CN": "请先输入密码。",
+    "zh-TW": "請先輸入密碼。",
+    "ko-KR": "먼저 비밀번호를 입력하세요.",
+    "no": "Skriv inn et passord først.",
+    "it": "Inserisci prima una password.",
+    "es": "Primero introduce una contraseña.",
+    "ar": "أدخل كلمة المرور أولاً.",
+    "fr": "Saisissez d'abord un mot de passe.",
+    "tr": "Önce bir parola girin.",
+    "de": "Zuerst ein Passwort eingeben.",
+    "uk": "Спочатку введіть пароль.",
+    "ca": "Introdueix primer una contrasenya."
   }
 }

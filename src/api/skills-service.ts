@@ -42,16 +42,21 @@ class SkillsService {
       return fetchCloudSkills();
     }
 
-    // Public skills come from the bundled @openhands/extensions npm package —
-    // no agent-server round-trip or GitHub fetch needed. Only ask the agent-
-    // server for user and project skills so local .agents/skills/ content is
-    // still picked up.
+    // Most "public" skills come from the bundled @openhands/extensions npm
+    // package, so we don't need an agent-server round-trip for those. But
+    // `load_public` is also what gates the agent-server's own registered
+    // marketplace skills (see openhands.agent_server.skills_service
+    // .load_all_skills: marketplace auto-load skills only load when
+    // load_public is true) — so it must stay true, or any marketplace
+    // registered in settings.json (e.g. custom internal skill catalogs)
+    // silently never loads. Duplicates against PUBLIC_SKILLS are removed
+    // below by name.
     let localSkills: SkillInfo[] = [];
     try {
       const response = await new SkillsClient(
         getAgentServerClientOptions(),
       ).getSkills({
-        load_public: false,
+        load_public: true,
         load_user: true,
         load_project: true,
         load_org: false,
@@ -63,7 +68,12 @@ class SkillsService {
       // unreachable; fall back to the bundled public catalog alone.
     }
 
-    return [...localSkills, ...PUBLIC_SKILLS];
+    const localSkillNames = new Set(localSkills.map((s) => s.name));
+    const dedupedPublicSkills = PUBLIC_SKILLS.filter(
+      (s) => !localSkillNames.has(s.name),
+    );
+
+    return [...localSkills, ...dedupedPublicSkills];
   }
 
   /**

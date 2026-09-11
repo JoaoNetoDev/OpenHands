@@ -83,10 +83,11 @@ function SettingsScreen() {
       <SettingsSectionHeaderProvider
         setHideSectionHeader={setHideSectionHeader}
       >
-        <SettingsLayout navigationItems={navItems}>
-          <div className="flex flex-col gap-6 pb-8">
-            {!shouldHideTitle && (
-              <header className="space-y-1">
+        <SettingsLayout
+          navigationItems={navItems}
+          header={
+            !shouldHideTitle ? (
+              <div className="space-y-1">
                 <Typography.H2>{t(currentSectionTitle)}</Typography.H2>
                 {currentSectionSubtitle ? (
                   <p
@@ -96,8 +97,11 @@ function SettingsScreen() {
                     {t(currentSectionSubtitle)}
                   </p>
                 ) : null}
-              </header>
-            )}
+              </div>
+            ) : undefined
+          }
+        >
+          <div className="flex flex-col gap-6 pb-8">
             <Outlet />
           </div>
         </SettingsLayout>

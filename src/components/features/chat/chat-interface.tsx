@@ -53,6 +53,10 @@ import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { I18nKey } from "#/i18n/declaration";
 import { hasConversationStarted } from "./components/resolve-picker-kind";
+import { useChatInputModelState } from "#/hooks/use-chat-input-model-state";
+import { useActiveBackendContext } from "#/contexts/active-backend-context";
+import { resolveVisionSupport } from "#/api/model-vision/resolve-vision-support";
+import { convertImagesToText } from "#/api/model-vision/image2text";
 
 function getEntryPoint(
   hasRepository: boolean | null,
@@ -101,6 +105,7 @@ export function ChatInterface() {
   );
   const { t } = useTranslation("openhands");
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const messageContentRef = React.useRef<HTMLDivElement>(null);
   const {
     scrollDomToBottom,
     onChatBodyScroll,
@@ -276,6 +281,8 @@ export function ChatInterface() {
       ? (s.entriesByConversation[conversationId]?.length ?? 0) > 0
       : false,
   );
+  const { currentModelId } = useChatInputModelState();
+  const { backends } = useActiveBackendContext();
   const hasStartedConversation = hasConversationStarted({
     isLoadingHistory: conversationWebSocket?.isLoadingHistory === true,
     hasUserEvents: userEventsExist,
@@ -352,7 +359,36 @@ export function ChatInterface() {
     }
 
     const promises = images.map((image) => convertImageToBase64(image));
-    const imageUrls = await Promise.all(promises);
+    const rawImageUrls = await Promise.all(promises);
+
+    // The active model may not support vision. When it doesn't and the user
+    // has configured an image2text converter for it, describe each image as
+    // text and fold that into the prompt instead of sending an `image`
+    // content block the model can't read. With no converter configured, the
+    // images are still sent as-is — the agent-server/LLM call itself is the
+    // final authority on whether that's rejected.
+    let imageUrls = rawImageUrls;
+    let visionFallbackText = "";
+    if (rawImageUrls.length > 0) {
+      const { supportsVision, converter } =
+        resolveVisionSupport(currentModelId);
+      if (!supportsVision && converter) {
+        try {
+          visionFallbackText = await convertImagesToText(
+            rawImageUrls,
+            converter,
+            backends,
+          );
+          imageUrls = [];
+        } catch (error) {
+          displayErrorToast(
+            error instanceof Error
+              ? error.message
+              : t(I18nKey.CHAT_INTERFACE$IMAGE2TEXT_FAILED),
+          );
+        }
+      }
+    }
 
     const timestamp = new Date().toISOString();
 
@@ -364,8 +400,13 @@ export function ChatInterface() {
     skippedFiles.forEach((f) => displayErrorToast(f.reason));
 
     const filePrompt = `${t(I18nKey.CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE)}: ${uploadedFiles.join("\n\n")}`;
-    const prompt =
-      uploadedFiles.length > 0 ? `${content}\n\n${filePrompt}` : content;
+    let prompt = content;
+    if (visionFallbackText) {
+      prompt = `${prompt}\n\n${t(I18nKey.CHAT_INTERFACE$AUGMENTED_PROMPT_IMAGES_TITLE)}:\n${visionFallbackText}`;
+    }
+    if (uploadedFiles.length > 0) {
+      prompt = `${prompt}\n\n${filePrompt}`;
+    }
 
     // Enqueue the message into the local pending queue with status "sending"
     // so the user immediately sees it in the chat with a faded treatment. The
@@ -433,6 +474,29 @@ export function ChatInterface() {
     activeGoalScrollKey,
     scrollDomToBottom,
   ]);
+
+  // The effect above re-scrolls once per new event, but a single event's
+  // rendered height isn't final at that point — thinking blocks and action
+  // groups now expand by default, and their markdown/content keeps growing
+  // across several layout passes as it streams in. Without this, the view
+  // stalls short of the real bottom until the *next* event arrives and
+  // re-triggers the effect above, producing a jump-then-lag feel while
+  // pinned to the bottom. A ResizeObserver on the message content wrapper
+  // catches every one of those in-between height changes and keeps nudging
+  // the scroll position to match, but only while the user hasn't scrolled
+  // away (autoScroll).
+  React.useEffect(() => {
+    const content = messageContentRef.current;
+    if (!content) return undefined;
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (autoScroll) {
+        scrollDomToBottom();
+      }
+    });
+    resizeObserver.observe(content);
+    return () => resizeObserver.disconnect();
+  }, [autoScroll, scrollDomToBottom]);
 
   // Auto-load older events when the chat content doesn't overflow the
   // scroll area (no scrollbar to drag, no wheel events past 0). We
@@ -560,33 +624,39 @@ export function ChatInterface() {
              * keeps its own gate (`!userEventsExist && !hasSubstantiveAgentActions`)
              * so brand-new conversations show suggestions, not an empty chat.
              */}
-            {/* /model entries created before any event is rendered are
-              anchored to `null` and live above the message list. */}
-            <ModelMessages
-              conversationId={conversationId}
-              anchorEventId={null}
-            />
-
-            {showConversationMessages && renderableEvents.length > 0 && (
-              <Messages
-                messages={renderableEvents}
-                allEvents={allConversationEvents}
+            <div
+              ref={messageContentRef}
+              className="flex flex-col gap-2"
+              data-testid="chat-message-content"
+            >
+              {/* /model entries created before any event is rendered are
+                anchored to `null` and live above the message list. */}
+              <ModelMessages
+                conversationId={conversationId}
+                anchorEventId={null}
               />
-            )}
 
-            {/*
-            Render the local pending-message queue independently so messages
-            the user just submitted show up immediately (with a faded "sending"
-            treatment) even before any real conversation event has come back
-            from the server. Entries drain (FIFO) when the matching
-            UserMessageEvent echoes back over the WebSocket, so this never
-            double-renders alongside the real event list.
-          */}
-            <PendingUserMessages />
+              {showConversationMessages && renderableEvents.length > 0 && (
+                <Messages
+                  messages={renderableEvents}
+                  allEvents={allConversationEvents}
+                />
+              )}
 
-            {/* Goal-loop status sits at the end of the message flow — above the
-              composer and its typing indicator — so progress stays in view. */}
-            <GoalStatusBanner conversationId={conversationId} />
+              {/*
+              Render the local pending-message queue independently so messages
+              the user just submitted show up immediately (with a faded "sending"
+              treatment) even before any real conversation event has come back
+              from the server. Entries drain (FIFO) when the matching
+              UserMessageEvent echoes back over the WebSocket, so this never
+              double-renders alongside the real event list.
+            */}
+              <PendingUserMessages />
+
+              {/* Goal-loop status sits at the end of the message flow — above the
+                composer and its typing indicator — so progress stays in view. */}
+              <GoalStatusBanner conversationId={conversationId} />
+            </div>
           </div>
 
           <div className="flex shrink-0 flex-col gap-[6px] pb-4">

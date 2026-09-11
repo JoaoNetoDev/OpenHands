@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { AgentProfilesBody } from "./agent-profiles-body";
 import { DeleteAgentProfileModal } from "./delete-agent-profile-modal";
+import { ImportFromCentralModal } from "./import-from-central-modal";
 import { type AgentProfileSummary } from "#/api/agent-profiles-service/agent-profiles-service.api";
 import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
 import { useActivateAgentProfile } from "#/hooks/mutation/use-activate-agent-profile";
@@ -28,6 +29,7 @@ export function AgentProfilesManager({
   const canManage = useCanManageOrgProfiles();
   const [profileToDelete, setProfileToDelete] =
     useState<AgentProfileSummary | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const profiles = data?.profiles ?? [];
   const activeId = data?.active_agent_profile_id ?? null;
@@ -52,16 +54,27 @@ export function AgentProfilesManager({
           <h2 className="text-base font-medium text-white">
             {t(I18nKey.SETTINGS$AVAILABLE_PROFILES)}
           </h2>
-          {onAddProfile && canManage ? (
-            <BrandButton
-              testId="add-agent-profile"
-              type="button"
-              variant="secondary"
-              className="ml-auto"
-              onClick={onAddProfile}
-            >
-              {t(I18nKey.SETTINGS$ADD_AGENT_PROFILE)}
-            </BrandButton>
+          {canManage ? (
+            <div className="ml-auto flex gap-2">
+              <BrandButton
+                testId="import-from-central"
+                type="button"
+                variant="tertiary"
+                onClick={() => setIsImportOpen(true)}
+              >
+                Importar do central
+              </BrandButton>
+              {onAddProfile ? (
+                <BrandButton
+                  testId="add-agent-profile"
+                  type="button"
+                  variant="secondary"
+                  onClick={onAddProfile}
+                >
+                  {t(I18nKey.SETTINGS$ADD_AGENT_PROFILE)}
+                </BrandButton>
+              ) : null}
+            </div>
           ) : null}
         </div>
 
@@ -81,6 +94,10 @@ export function AgentProfilesManager({
       <DeleteAgentProfileModal
         profile={profileToDelete}
         onClose={() => setProfileToDelete(null)}
+      />
+      <ImportFromCentralModal
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
       />
     </>
   );

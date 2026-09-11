@@ -5,11 +5,14 @@ import {
 } from "#/api/conversation-file-upload.api";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import type { SendMessageRequest } from "#/api/conversation-service/agent-server-conversation-service.types";
+import type { Backend } from "#/api/backend-registry/types";
 import { convertImageToBase64 } from "#/utils/convert-image-to-base-64";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { partitionImagesForUpload } from "#/components/features/chat/utils/chat-input.utils";
 import { validateFiles } from "#/utils/file-validation";
 import { I18nKey } from "#/i18n/declaration";
+import { resolveVisionSupport } from "#/api/model-vision/resolve-vision-support";
+import { convertImagesToText } from "#/api/model-vision/image2text";
 
 export interface SendMessageWithAttachmentsResult {
   text: string;
@@ -26,6 +29,10 @@ export async function sendMessageWithAttachments(options: {
   files: File[];
   imagesMarkedUploadAsFile: string[];
   t: TFunction;
+  /** Active model id (`provider/model`), used to resolve vision support. */
+  modelId?: string | null;
+  /** Registered backends, used to resolve a "backend" image2text converter. */
+  backends?: Backend[];
 }): Promise<SendMessageWithAttachmentsResult> {
   const {
     conversationId,
@@ -34,6 +41,8 @@ export async function sendMessageWithAttachments(options: {
     files,
     imagesMarkedUploadAsFile,
     t,
+    modelId = null,
+    backends = [],
   } = options;
 
   const { imagesToEmbed, imagesAsFiles } = partitionImagesForUpload(
@@ -47,9 +56,34 @@ export async function sendMessageWithAttachments(options: {
     throw new Error(validation.errorMessage ?? "Invalid attachments");
   }
 
-  const imageUrls = await Promise.all(
+  const rawImageUrls = await Promise.all(
     imagesToEmbed.map((image) => convertImageToBase64(image)),
   );
+
+  // See chat-interface.tsx's handleSendMessage for the rationale: when the
+  // active model has no vision support and a converter is configured for
+  // it, describe images as text instead of sending an `image` content block.
+  let imageUrls = rawImageUrls;
+  let visionFallbackText = "";
+  if (rawImageUrls.length > 0) {
+    const { supportsVision, converter } = resolveVisionSupport(modelId);
+    if (!supportsVision && converter) {
+      try {
+        visionFallbackText = await convertImagesToText(
+          rawImageUrls,
+          converter,
+          backends,
+        );
+        imageUrls = [];
+      } catch (error) {
+        displayErrorToast(
+          error instanceof Error
+            ? error.message
+            : t(I18nKey.CHAT_INTERFACE$IMAGE2TEXT_FAILED),
+        );
+      }
+    }
+  }
 
   const runtime = await resolveConversationRuntime(conversationId);
 
@@ -61,8 +95,13 @@ export async function sendMessageWithAttachments(options: {
   skippedFiles.forEach((file) => displayErrorToast(file.reason));
 
   const filePrompt = `${t(I18nKey.CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE)}: ${uploadedFiles.join("\n\n")}`;
-  const prompt =
-    uploadedFiles.length > 0 ? `${content}\n\n${filePrompt}` : content;
+  let prompt = content;
+  if (visionFallbackText) {
+    prompt = `${prompt}\n\n${t(I18nKey.CHAT_INTERFACE$AUGMENTED_PROMPT_IMAGES_TITLE)}:\n${visionFallbackText}`;
+  }
+  if (uploadedFiles.length > 0) {
+    prompt = `${prompt}\n\n${filePrompt}`;
+  }
 
   const timestamp = new Date().toISOString();
 

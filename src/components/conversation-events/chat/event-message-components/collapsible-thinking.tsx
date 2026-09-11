@@ -4,6 +4,7 @@ import ArrowDown from "#/icons/angle-down-solid.svg?react";
 import ArrowUp from "#/icons/angle-up-solid.svg?react";
 import LightbulbIcon from "#/icons/lightbulb.svg?react";
 import { I18nKey } from "#/i18n/declaration";
+import { useTranscriptDetailStore } from "#/stores/transcript-detail-store";
 import { MarkdownRenderer } from "../../../features/markdown/markdown-renderer";
 
 interface CollapsibleThinkingProps {
@@ -13,12 +14,24 @@ interface CollapsibleThinkingProps {
 
 /**
  * Renders agent thinking or extended reasoning content inside a collapsible
- * section.  Collapsed by default so the chat stays compact — especially
- * useful when the thinking language differs from the conversation language.
+ * section. Starts expanded or collapsed based on the user's transcript
+ * detail preference (`transcript-detail-store`), and snaps open/closed
+ * whenever an "expand all" / "collapse all" action fires.
  */
 export function CollapsibleThinking({ content }: CollapsibleThinkingProps) {
   const { t } = useTranslation("openhands");
-  const [expanded, setExpanded] = React.useState(false);
+  const expandByDefault = useTranscriptDetailStore(
+    (state) => state.expandByDefault,
+  );
+  const resetSignal = useTranscriptDetailStore((state) => state.resetSignal);
+  const resetValue = useTranscriptDetailStore((state) => state.resetValue);
+  const [expanded, setExpanded] = React.useState(expandByDefault);
+
+  React.useEffect(() => {
+    if (resetSignal > 0) {
+      setExpanded(resetValue);
+    }
+  }, [resetSignal, resetValue]);
 
   if (!content.trim()) {
     return null;

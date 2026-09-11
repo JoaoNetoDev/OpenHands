@@ -4,6 +4,7 @@ import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useUpdateConversation } from "#/hooks/mutation/use-update-conversation";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useConversationNameContextMenu } from "#/hooks/use-conversation-name-context-menu";
+import { useTranscriptDetailStore } from "#/stores/transcript-detail-store";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 import { EllipsisButton } from "../conversation-panel/ellipsis-button";
@@ -27,6 +28,11 @@ export function ConversationName() {
     React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const ellipsisAnchorRef = React.useRef<HTMLDivElement>(null);
+  const expandAll = useTranscriptDetailStore((state) => state.expandAll);
+  const collapseAll = useTranscriptDetailStore((state) => state.collapseAll);
+  const setExpandByDefault = useTranscriptDetailStore(
+    (state) => state.setExpandByDefault,
+  );
 
   // Use the custom hook for context menu handlers
   const {
@@ -130,6 +136,22 @@ export function ConversationName() {
     setContextMenuOpen(false);
   };
 
+  const handleExpandAll = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setExpandByDefault(true);
+    expandAll();
+    setContextMenuOpen(false);
+  };
+
+  const handleCollapseAll = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setExpandByDefault(false);
+    collapseAll();
+    setContextMenuOpen(false);
+  };
+
   React.useEffect(() => {
     if (titleMode === "edit") {
       inputRef.current?.focus();
@@ -200,6 +222,8 @@ export function ConversationName() {
                     ? handleDownloadConversation
                     : undefined
                 }
+                onExpandAll={handleExpandAll}
+                onCollapseAll={handleCollapseAll}
                 position="bottom"
                 anchorRef={ellipsisAnchorRef}
               />

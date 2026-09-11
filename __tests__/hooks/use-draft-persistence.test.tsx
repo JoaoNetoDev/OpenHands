@@ -55,6 +55,7 @@ describe("useDraftPersistence", () => {
       setDraftMessage: mockSetDraftMessage,
       setFilesTabDiffView: vi.fn(),
       setFilesTabContentViewMode: vi.fn(),
+      setReasoningEffort: vi.fn(),
     });
 
     // Default mock for getConversationState
@@ -231,6 +232,7 @@ describe("useDraftPersistence", () => {
         setDraftMessage: mockSetDraftMessage,
         setFilesTabDiffView: vi.fn(),
         setFilesTabContentViewMode: vi.fn(),
+        setReasoningEffort: vi.fn(),
       });
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
@@ -537,6 +539,7 @@ describe("useDraftPersistence", () => {
         setDraftMessage: mockSetDraftMessage,
         setFilesTabDiffView: vi.fn(),
         setFilesTabContentViewMode: vi.fn(),
+        setReasoningEffort: vi.fn(),
       });
 
       // Act

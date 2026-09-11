@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
+import { ExtensionsPageLayout } from "#/components/features/skills/extensions-page-layout";
 import { PluginCard } from "#/components/features/plugins/plugin-card";
 import { PluginsToolbar } from "#/components/features/plugins/plugins-toolbar";
 import { PluginDetailModal } from "#/components/features/plugins/plugin-detail-modal";
@@ -25,7 +25,6 @@ import { useNavigation } from "#/context/navigation-context";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { buildPluginLaunchPath } from "#/utils/plugin-launch-url";
-import { settingsLikeMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 import {
   extensionModuleCardGridClassName,
   extensionModuleCardGridContainerClassName,
@@ -121,12 +120,8 @@ export default function SkillsPluginsScreen() {
   };
 
   return (
-    <div
-      data-testid="skills-plugins-screen"
-      className="flex h-full gap-4 md:gap-6 md:pl-8 lg:gap-10 lg:pl-10"
-    >
-      <ExtensionsNavigation />
-      <main className={cn(settingsLikeMainScrollClassName, "h-full")}>
+    <ExtensionsPageLayout
+      header={
         <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
           <div className="flex min-w-0 items-start justify-between gap-4">
             <div className="min-w-0 space-y-1">
@@ -152,91 +147,92 @@ export default function SkillsPluginsScreen() {
             </BrandButton>
           </div>
 
-          {isLoading && (
-            <div className="flex flex-col gap-4">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="h-24 rounded-2xl bg-tertiary animate-pulse"
-                />
-              ))}
-            </div>
-          )}
+          {!isLoading && plugins.length > 0 ? (
+            <PluginsToolbar
+              search={searchQuery}
+              onSearchChange={setSearchQuery}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
+            />
+          ) : null}
+        </div>
+      }
+    >
+      <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
+        {isLoading && (
+          <div className="flex flex-col gap-4">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-24 rounded-2xl bg-tertiary animate-pulse"
+              />
+            ))}
+          </div>
+        )}
 
-          {!isLoading && plugins.length === 0 && (
+        {!isLoading && plugins.length === 0 && (
+          <div
+            data-testid="plugins-empty"
+            className={extensionModuleEmptyStateClassName}
+          >
+            <p className="text-sm text-tertiary-light">
+              {t(I18nKey.SETTINGS$PLUGINS_NO_PLUGINS)}
+            </p>
+          </div>
+        )}
+
+        {!isLoading &&
+          plugins.length > 0 &&
+          (filteredPlugins.length === 0 ? (
             <div
-              data-testid="plugins-empty"
+              data-testid="plugins-no-match"
               className={extensionModuleEmptyStateClassName}
             >
               <p className="text-sm text-tertiary-light">
-                {t(I18nKey.SETTINGS$PLUGINS_NO_PLUGINS)}
+                {t(I18nKey.SETTINGS$PLUGINS_NO_MATCH)}
               </p>
             </div>
-          )}
-
-          {!isLoading && plugins.length > 0 && (
-            <>
-              <PluginsToolbar
-                search={searchQuery}
-                onSearchChange={setSearchQuery}
-                statusFilter={statusFilter}
-                onStatusFilterChange={setStatusFilter}
-              />
-              {filteredPlugins.length === 0 ? (
-                <div
-                  data-testid="plugins-no-match"
-                  className={extensionModuleEmptyStateClassName}
-                >
-                  <p className="text-sm text-tertiary-light">
-                    {t(I18nKey.SETTINGS$PLUGINS_NO_MATCH)}
-                  </p>
-                </div>
-              ) : (
-                <section
-                  className={cn(
-                    "flex min-w-0 flex-col gap-3",
-                    extensionModuleCardGridContainerClassName,
-                  )}
-                >
-                  <div className={extensionModuleCardGridClassName}>
-                    {filteredPlugins.map((plugin) => (
-                      <PluginCard
-                        key={plugin.name}
-                        plugin={plugin}
-                        isBusy={isPluginBusy(plugin)}
-                        isDisabled={!isLocal}
-                        onOpen={() => setSelectedName(plugin.name)}
-                        onInstall={() => handleInstall(plugin)}
-                        onToggle={(enabled) => handleToggle(plugin, enabled)}
-                      />
-                    ))}
-                  </div>
-                </section>
+          ) : (
+            <section
+              className={cn(
+                "flex min-w-0 flex-col gap-3",
+                extensionModuleCardGridContainerClassName,
               )}
-            </>
-          )}
+            >
+              <div className={extensionModuleCardGridClassName}>
+                {filteredPlugins.map((plugin) => (
+                  <PluginCard
+                    key={plugin.name}
+                    plugin={plugin}
+                    isBusy={isPluginBusy(plugin)}
+                    isDisabled={!isLocal}
+                    onOpen={() => setSelectedName(plugin.name)}
+                    onInstall={() => handleInstall(plugin)}
+                    onToggle={(enabled) => handleToggle(plugin, enabled)}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
 
-          {selectedPlugin && (
-            <PluginDetailModal
-              plugin={selectedPlugin}
-              isBusy={isPluginBusy(selectedPlugin)}
-              isDisabled={!isLocal}
-              onToggle={(enabled) => handleToggle(selectedPlugin, enabled)}
-              onInstall={() => handleInstall(selectedPlugin)}
-              onUninstall={() => handleUninstall(selectedPlugin)}
-              onRefresh={() => handleRefresh(selectedPlugin)}
-              onStartConversation={() =>
-                handleStartConversation(selectedPlugin)
-              }
-              onClose={() => setSelectedName(null)}
-            />
-          )}
+        {selectedPlugin && (
+          <PluginDetailModal
+            plugin={selectedPlugin}
+            isBusy={isPluginBusy(selectedPlugin)}
+            isDisabled={!isLocal}
+            onToggle={(enabled) => handleToggle(selectedPlugin, enabled)}
+            onInstall={() => handleInstall(selectedPlugin)}
+            onUninstall={() => handleUninstall(selectedPlugin)}
+            onRefresh={() => handleRefresh(selectedPlugin)}
+            onStartConversation={() => handleStartConversation(selectedPlugin)}
+            onClose={() => setSelectedName(null)}
+          />
+        )}
 
-          {showAddModal && (
-            <AddPluginModal onClose={() => setShowAddModal(false)} />
-          )}
-        </div>
-      </main>
-    </div>
+        {showAddModal && (
+          <AddPluginModal onClose={() => setShowAddModal(false)} />
+        )}
+      </div>
+    </ExtensionsPageLayout>
   );
 }

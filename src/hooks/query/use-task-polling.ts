@@ -23,6 +23,8 @@ import {
   schedulePendingTaskMessageReassign,
 } from "#/utils/pending-task-message-link";
 import { useBackendScopedPath } from "#/hooks/use-backend-scoped-path";
+import { useChatInputModelState } from "#/hooks/use-chat-input-model-state";
+import { useActiveBackendContext } from "#/contexts/active-backend-context";
 
 const storeTaskPlugins = (
   task: AppConversationStartTask,
@@ -116,6 +118,13 @@ export const useTaskPollingController = () => {
   const { navigate } = useNavigation();
   const backendScopedPath = useBackendScopedPath();
   const handledReadyTaskIdRef = useRef<string | null>(null);
+  const { currentModelId } = useChatInputModelState();
+  const { backends } = useActiveBackendContext();
+  // Read via a ref inside the async effect below so the vision-config values
+  // are current at flush time without adding them as effect dependencies
+  // (which would re-run the ready-navigation effect on every model change).
+  const visionContextRef = useRef({ currentModelId, backends });
+  visionContextRef.current = { currentModelId, backends };
 
   // Reassign optimistic pending messages before paint on the real conversation
   // route. Doing this in the ready handler before navigate leaves a frame where
@@ -157,7 +166,10 @@ export const useTaskPollingController = () => {
     storeTaskPlugins(task, appConversationId);
 
     void (async () => {
-      await flushPendingTaskAttachments(taskId, appConversationId);
+      await flushPendingTaskAttachments(taskId, appConversationId, {
+        modelId: visionContextRef.current.currentModelId,
+        backends: visionContextRef.current.backends,
+      });
 
       const taskConversationId = `task-${taskId}`;
       linkPendingTaskMessages(appConversationId, taskConversationId);

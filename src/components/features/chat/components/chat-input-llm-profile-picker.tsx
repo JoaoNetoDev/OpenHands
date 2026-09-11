@@ -1,6 +1,11 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { useChatInputLlmProfileState } from "#/hooks/use-chat-input-llm-profile-state";
+import {
+  useChatInputReasoningEffortState,
+  REASONING_EFFORT_OPTIONS,
+} from "#/hooks/use-chat-input-reasoning-effort-state";
+import type { ReasoningEffort } from "#/utils/conversation-local-storage";
 import { ComboboxCaretInline } from "#/ui/combobox-caret";
 import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import CheckIcon from "#/icons/checkmark.svg?react";
@@ -16,6 +21,14 @@ import { chatInputPillButtonClassName } from "#/utils/form-control-classes";
 import { formatModelNameForDisplay } from "#/utils/format-model-name";
 
 const PROFILE_LABEL_MAX_CHARS = 18;
+
+const REASONING_EFFORT_CHOICE_KEYS: Record<ReasoningEffort, I18nKey> = {
+  none: I18nKey.SCHEMA$LLM$REASONING_EFFORT$CHOICE$NONE,
+  low: I18nKey.SCHEMA$LLM$REASONING_EFFORT$CHOICE$LOW,
+  medium: I18nKey.SCHEMA$LLM$REASONING_EFFORT$CHOICE$MEDIUM,
+  high: I18nKey.SCHEMA$LLM$REASONING_EFFORT$CHOICE$HIGH,
+  xhigh: I18nKey.SCHEMA$LLM$REASONING_EFFORT$CHOICE$XHIGH,
+};
 
 function truncateLabel(label: string): string {
   return label.length <= PROFILE_LABEL_MAX_CHARS
@@ -56,8 +69,15 @@ export function ChatInputLlmProfileMenuContent({
   const showProfileList = canSwitchProfile && profiles.length > 0;
   const readOnlyProfileName = canSwitchProfile ? null : currentProfileName;
 
+  const effortState = useChatInputReasoningEffortState(currentProfileName);
+
   const handleSelect = (profileName: string) => {
     selectProfile(profileName);
+    onClose();
+  };
+
+  const handleSelectEffort = (effort: ReasoningEffort | null) => {
+    effortState.selectEffort(effort);
     onClose();
   };
 
@@ -135,6 +155,73 @@ export function ChatInputLlmProfileMenuContent({
       )}
       {(showProfileList || readOnlyProfileName) && (
         <Divider inset={dividerInset} />
+      )}
+      {effortState.isAvailable && (
+        <>
+          <li role="presentation" className="px-2 pt-1 pb-0.5">
+            <Typography.Text className="text-[11px] font-medium text-[var(--oh-text-dim)] uppercase tracking-wide leading-4">
+              {t(I18nKey.SCHEMA$LLM$REASONING_EFFORT$LABEL)}
+            </Typography.Text>
+          </li>
+          <ContextMenuListItem
+            testId="chat-input-reasoning-effort-option-default"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              handleSelectEffort(null);
+            }}
+            isDisabled={effortState.isSwitching}
+            className={cn(
+              "flex items-center gap-2",
+              effortState.currentEffort === null &&
+                "bg-[var(--oh-interactive-hover)]",
+            )}
+          >
+            <span className="flex-1 truncate text-sm leading-5">
+              {t(I18nKey.SETTINGS$PROFILE_DEFAULT)}
+            </span>
+            {effortState.currentEffort === null && (
+              <CheckIcon
+                width={14}
+                height={14}
+                className="shrink-0"
+                aria-hidden
+              />
+            )}
+          </ContextMenuListItem>
+          {REASONING_EFFORT_OPTIONS.map((effort) => {
+            const isCurrent = effortState.currentEffort === effort;
+            return (
+              <ContextMenuListItem
+                key={effort}
+                testId={`chat-input-reasoning-effort-option-${effort}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  handleSelectEffort(effort);
+                }}
+                isDisabled={effortState.isSwitching}
+                className={cn(
+                  "flex items-center gap-2",
+                  isCurrent && "bg-[var(--oh-interactive-hover)]",
+                )}
+              >
+                <span className="flex-1 truncate text-sm leading-5">
+                  {t(REASONING_EFFORT_CHOICE_KEYS[effort])}
+                </span>
+                {isCurrent && (
+                  <CheckIcon
+                    width={14}
+                    height={14}
+                    className="shrink-0"
+                    aria-hidden
+                  />
+                )}
+              </ContextMenuListItem>
+            );
+          })}
+          <Divider inset={dividerInset} />
+        </>
       )}
       <li className="text-sm">
         <NavigationLink

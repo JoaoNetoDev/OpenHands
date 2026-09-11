@@ -1108,6 +1108,52 @@ class AgentServerConversationService {
   }
 
   /**
+   * Switches only the `reasoning_effort` of the running conversation's LLM,
+   * keeping every other field of the active profile's config (model,
+   * api_key, base_url, …) untouched — the per-conversation analog of
+   * {@link switchProfile}, scoped to one field so the global default profile
+   * is never written.
+   *
+   * Local backend only: unlike `switchProfile`, there is no cloud
+   * `/switch_reasoning_effort` proxy endpoint today, so this throws on a
+   * cloud backend. Callers must gate the UI accordingly (see
+   * `useChatInputReasoningEffortState`).
+   */
+  static async switchReasoningEffort(
+    conversationId: string,
+    profileName: string,
+    reasoningEffort: LLMConfig["reasoning_effort"],
+  ): Promise<void> {
+    const { backend } = getActiveBackend();
+    if (backend.kind === "cloud") {
+      throw new Error(
+        "Switching reasoning effort is not supported on cloud backends yet.",
+      );
+    }
+
+    const clientOptions = getAgentServerClientOptions();
+    const conversationClient = new ConversationClient(clientOptions);
+    const profile = await new ProfilesClient(clientOptions).getProfile(
+      profileName,
+      { exposeSecrets: "encrypted" },
+    );
+    const model =
+      typeof profile.config.model === "string" ? profile.config.model : "";
+    if (!model) throw new Error(`Profile '${profileName}' has no model.`);
+    await assertSubscriptionAuthReady({ llm: profile.config });
+    await conversationClient.switchLLM(conversationId, {
+      ...profile.config,
+      model,
+      reasoning_effort: reasoningEffort,
+      // Keep streaming on after a switch (parity with conversation start);
+      // the profile config would otherwise default it to stream=False.
+      stream: true,
+      // Avoid stale first-write-wins entries in the backend LLM registry.
+      usage_id: `profile:${profileName}:${uuidv4()}`,
+    } as LLMConfig);
+  }
+
+  /**
    * Switches the model of a running ACP conversation in place (POST
    * /switch_acp_model — the ACP analog of {@link switchProfile}'s /switch_profile).
    * The agent-server calls the ACP wrapper's ``session/set_model`` on the live

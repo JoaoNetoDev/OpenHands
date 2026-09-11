@@ -57,7 +57,15 @@ export interface ConversationState {
   filesTabOpenPaths?: string[];
   /** Currently selected path among `filesTabOpenPaths`, if any. */
   filesTabSelectedPath?: string | null;
+  /**
+   * Per-conversation reasoning-effort override, applied on top of the
+   * active LLM profile without touching the user's global default. `null`
+   * means "use the profile/global default".
+   */
+  reasoningEffort?: ReasoningEffort | null;
 }
+
+export type ReasoningEffort = "none" | "low" | "medium" | "high" | "xhigh";
 
 const DEFAULT_CONVERSATION_STATE: ConversationState = {
   selectedTab: "files",
@@ -73,7 +81,16 @@ const DEFAULT_CONVERSATION_STATE: ConversationState = {
   filesTabTreeVisible: true,
   filesTabOpenPaths: [],
   filesTabSelectedPath: null,
+  reasoningEffort: null,
 };
+
+const VALID_REASONING_EFFORTS: ReadonlySet<ReasoningEffort> = new Set([
+  "none",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+]);
 
 const VALID_CONVERSATION_TABS: ReadonlySet<ConversationTab> = new Set([
   "files",
@@ -199,6 +216,14 @@ function sanitizeStoredState(
   ) {
     result = { ...result };
     delete result.filesTabSelectedPath;
+  }
+
+  if (
+    result.reasoningEffort != null &&
+    !VALID_REASONING_EFFORTS.has(result.reasoningEffort)
+  ) {
+    result = { ...result };
+    delete result.reasoningEffort;
   }
 
   return result;
@@ -352,6 +377,7 @@ export function useConversationLocalStorageState(conversationId: string): {
     openPaths: string[],
     selectedPath: string | null,
   ) => void;
+  setReasoningEffort: (effort: ReasoningEffort | null) => void;
 } {
   const [state, setState] = useState<ConversationState>(() =>
     getConversationState(conversationId),
@@ -433,5 +459,6 @@ export function useConversationLocalStorageState(conversationId: string): {
         filesTabOpenPaths: openPaths,
         filesTabSelectedPath: selectedPath,
       }),
+    setReasoningEffort: (effort) => updateState({ reasoningEffort: effort }),
   };
 }

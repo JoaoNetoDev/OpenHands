@@ -1,6 +1,7 @@
 import React from "react";
 import { AxiosError } from "axios";
 import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
+import { ExtensionsPageLayout } from "#/components/features/skills/extensions-page-layout";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -9,7 +10,6 @@ import { useUpdateMcpServer } from "#/hooks/mutation/use-update-mcp-server";
 import { parseMcpConfig } from "#/utils/mcp-config";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
-import { settingsLikeMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 import {
   findCatalogEntryForServer,
   getMcpMarketplaceCatalog,
@@ -106,12 +106,8 @@ export default function MCPPage() {
   }
 
   return (
-    <div
-      data-testid="mcp-page"
-      className="flex h-full gap-4 md:gap-6 md:pl-8 lg:gap-10 lg:pl-10"
-    >
-      <ExtensionsNavigation />
-      <main className={settingsLikeMainScrollClassName}>
+    <ExtensionsPageLayout
+      header={
         <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-4">
@@ -141,49 +137,51 @@ export default function MCPPage() {
             sectionFilter={sectionFilter}
             onSectionFilterChange={setSectionFilter}
           />
-
-          {sectionFilter !== "library" ? (
-            <section className="flex flex-col gap-3">
-              <h2 className="text-base font-semibold text-foreground">
-                {t(I18nKey.MCP$INSTALLED_TITLE)}
-              </h2>
-              <InstalledServersSection
-                servers={filteredInstalledServers}
-                hasAnyInstalled={allServers.length > 0}
-                query={searchQuery}
-                onEdit={handleEdit}
-                onToggleEnabled={handleToggleEnabled}
-              />
-            </section>
-          ) : null}
-
-          {sectionFilter !== "installed" ? (
-            <MarketplaceSection
-              onSelect={handleMarketplaceInstall}
-              onAdd={handleMarketplaceInstall}
-              query={searchQuery}
-            />
-          ) : null}
         </div>
+      }
+    >
+      <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
+        {sectionFilter !== "library" ? (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-base font-semibold text-foreground">
+              {t(I18nKey.MCP$INSTALLED_TITLE)}
+            </h2>
+            <InstalledServersSection
+              servers={filteredInstalledServers}
+              hasAnyInstalled={allServers.length > 0}
+              query={searchQuery}
+              onEdit={handleEdit}
+              onToggleEnabled={handleToggleEnabled}
+            />
+          </section>
+        ) : null}
 
-        {installEntry && (
-          <InstallServerModal
-            entry={installEntry}
-            existingServers={allServers}
-            onClose={() => setInstallEntry(null)}
+        {sectionFilter !== "installed" ? (
+          <MarketplaceSection
+            onSelect={handleMarketplaceInstall}
+            onAdd={handleMarketplaceInstall}
+            query={searchQuery}
           />
-        )}
+        ) : null}
+      </div>
 
-        {/* Custom (or non-marketplace) server editor. The empty-id
-            sentinel (`{ id: "", type: "sse" }`) means "add new". */}
-        {editingServer && (
-          <CustomServerEditor
-            server={editingServer}
-            existingServers={allServers}
-            onClose={() => setEditingServer(null)}
-          />
-        )}
-      </main>
-    </div>
+      {installEntry && (
+        <InstallServerModal
+          entry={installEntry}
+          existingServers={allServers}
+          onClose={() => setInstallEntry(null)}
+        />
+      )}
+
+      {/* Custom (or non-marketplace) server editor. The empty-id
+          sentinel (`{ id: "", type: "sse" }`) means "add new". */}
+      {editingServer && (
+        <CustomServerEditor
+          server={editingServer}
+          existingServers={allServers}
+          onClose={() => setEditingServer(null)}
+        />
+      )}
+    </ExtensionsPageLayout>
   );
 }
