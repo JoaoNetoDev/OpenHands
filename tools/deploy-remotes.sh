@@ -44,6 +44,9 @@
 # no host. Trate este arquivo como as chaves SSH — 600, nunca no git, e
 # rotacione se vazar.
 
+# shellcheck source=tools/lib/remote-exec-https.sh
+source "$(dirname "$0")/lib/remote-exec-https.sh"
+
 set -euo pipefail
 
 CONFIG="${OPENHANDS_DEPLOY_HOSTS:-/etc/openhands-deploy/hosts.tsv}"
@@ -94,41 +97,6 @@ log()  { printf '\033[1;34m[%s]\033[0m %s\n' "$1" "$2" >&2; }
 ok()   { printf '\033[1;32m[%s]\033[0m %s\n' "$1" "$2" >&2; }
 err()  { printf '\033[1;31m[%s]\033[0m %s\n' "$1" "$2" >&2; }
 
-# Executa um script bash no host remoto. Ecoa stdout/stderr e propaga o exit code.
-remote_exec() {
-  local name="$1" url="$2" key="$3" script="$4"
-  if [ "$DRY_RUN" = "1" ]; then
-    echo "--- (dry-run) comando que seria executado em $name ---"
-    echo "$script"
-    echo "--- fim ---"
-    return 0
-  fi
-  SCRIPT="$script" URL="$url" KEY="$key" TMO="$TIMEOUT" python3 - <<'PY'
-import base64, json, os, sys, urllib.request, urllib.error
-url = os.environ["URL"].rstrip("/") + "/api/bash/execute_bash_command"
-# O endpoint executa via /bin/sh (dash). Mandamos o script em base64 e pedimos
-# bash explicitamente: garante bashismos (pipefail) e elimina escaping.
-b64 = base64.b64encode(os.environ["SCRIPT"].encode()).decode()
-cmd = f"echo {b64} | base64 -d | bash"
-body = json.dumps({"command": cmd, "timeout": int(os.environ["TMO"])}).encode()
-req = urllib.request.Request(url, data=body, method="POST", headers={
-    "Content-Type": "application/json",
-    "X-Session-API-Key": os.environ["KEY"],
-})
-try:
-    with urllib.request.urlopen(req, timeout=int(os.environ["TMO"]) + 30) as r:
-        d = json.load(r)
-except urllib.error.HTTPError as e:
-    sys.stderr.write(f"HTTP {e.code}: {e.read().decode('utf-8', 'replace')[:400]}\n")
-    sys.exit(2)
-except Exception as e:
-    sys.stderr.write(f"falha de conexão: {e}\n")
-    sys.exit(2)
-if d.get("stdout"): sys.stdout.write(d["stdout"])
-if d.get("stderr"): sys.stderr.write(d["stderr"])
-sys.exit(d.get("exit_code") or 0)
-PY
-}
 
 # ------------------------------------------------------------- scripts remotos
 check_script() {
@@ -228,7 +196,7 @@ while IFS= read -r line; do
   if [ -n "$RUN_SCRIPT" ]; then
     [ -f "$RUN_SCRIPT" ] || { err "$name" "script não encontrado: $RUN_SCRIPT"; failures+=1; continue; }
     log "$name" "executando $(basename "$RUN_SCRIPT")..."
-    if remote_exec "$name" "$url" "$key" "$(cat "$RUN_SCRIPT")"; then
+    if remote_exec_https "$name" "$url" "$key" "$(cat "$RUN_SCRIPT")"; then
       ok "$name" "script OK"
     else
       err "$name" "script falhou (exit $?)"; failures+=1
@@ -238,12 +206,12 @@ while IFS= read -r line; do
 
   if [ "$CHECK_ONLY" = "1" ]; then
     log "$name" "consultando estado..."
-    remote_exec "$name" "$url" "$key" "$(check_script)" || { err "$name" "falhou"; failures+=1; }
+    remote_exec_https "$name" "$url" "$key" "$(check_script)" || { err "$name" "falhou"; failures+=1; }
     continue
   fi
 
   log "$name" "deploy da branch $BRANCH..."
-  if remote_exec "$name" "$url" "$key" "$(deploy_script)"; then
+  if remote_exec_https "$name" "$url" "$key" "$(deploy_script)"; then
     ok "$name" "deploy OK"
   else
     err "$name" "deploy falhou (exit $?)"; failures+=1

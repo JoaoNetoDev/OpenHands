@@ -1,0 +1,4 @@
+# nome|alvo_ssh  — alvo_ssh é um Host de ~/.ssh/config (ou usuário@host[:porta])
+aqdata|sistema.aqdata.com.br
+lebi|lebi
+f5|f5-dev
