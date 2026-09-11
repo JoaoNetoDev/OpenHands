@@ -59,6 +59,7 @@ parse_args() {
       --dry-run) DRY_RUN=1; shift ;;
       --channel) CHANNEL="${2:-}"; shift 2 ;;
       --timeout) TIMEOUT="${2:-}"; shift 2 ;;
+      --hosts-file) HOSTS_FILE="${2:-}"; shift 2 ;;
       -h|--help) usage ;;
       -*) err "args" "flag desconhecida: $1"; usage ;;
       *) HOSTS+=("$1"); shift ;;
