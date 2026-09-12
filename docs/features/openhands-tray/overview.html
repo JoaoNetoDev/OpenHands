@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>OpenHands Tray — Canvas na VPS ↔ Agent local</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --text: #1c1c1c; --muted: #63645f;
+    --accent: #b5490e; --accent-bg: #fdece0; --border: #e4e2dc;
+    --ok: #2a6b3f; --ok-bg: #e7f3ea; --risk: #8a5a00; --risk-bg: #fdf1da;
+    --pending: #5a5a55; --pending-bg: #ececea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17181a; --card: #1f2023; --text: #ecece9; --muted: #9a9a94;
+      --accent: #e07a45; --accent-bg: #3a2416; --border: #333437;
+      --ok: #7fce97; --ok-bg: #16281d; --risk: #e0b34a; --risk-bg: #2e2510;
+      --pending: #b0b0aa; --pending-bg: #26282b;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17181a; --card: #1f2023; --text: #ecece9; --muted: #9a9a94;
+    --accent: #e07a45; --accent-bg: #3a2416; --border: #333437;
+    --ok: #7fce97; --ok-bg: #16281d; --risk: #e0b34a; --risk-bg: #2e2510;
+    --pending: #b0b0aa; --pending-bg: #26282b;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 48px 24px 80px; }
+  h1 { font-size: 1.7rem; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 36px; font-size: 1rem; }
+  h2 { font-size: 1.15rem; margin: 44px 0 14px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  p { line-height: 1.6; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px 22px; margin-bottom: 14px; }
+  .problem { border-left: 4px solid var(--accent); }
+  .timeline { display: flex; flex-direction: column; gap: 10px; }
+  .wave { display: grid; grid-template-columns: 90px 1fr; gap: 16px; align-items: start; }
+  .wave-badge { background: var(--accent-bg); color: var(--accent); font-weight: 600; font-size: .8rem; padding: 6px 10px; border-radius: 20px; text-align: center; white-space: nowrap; }
+  .wave-pending { background: var(--pending-bg); color: var(--pending); }
+  .wave-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; }
+  .wave-card h3 { margin: 0 0 4px; font-size: 1rem; }
+  .wave-card p { margin: 0; color: var(--muted); font-size: .92rem; }
+  .dep { display: inline-block; margin-top: 8px; font-size: .8rem; color: var(--muted); }
+  ul.plain { padding-left: 20px; line-height: 1.7; }
+  code { background: var(--accent-bg); color: var(--accent); padding: 1px 6px; border-radius: 4px; font-size: .9em; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .risk { border-left: 4px solid var(--risk); background: var(--risk-bg); }
+  .risk b { color: var(--risk); }
+  .ok { border-left: 4px solid var(--ok); background: var(--ok-bg); }
+  .ok b { color: var(--ok); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } .wave { grid-template-columns: 1fr; } }
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: .85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>OpenHands Tray — Canvas na VPS ↔ Agent local</h1>
+<p class="sub">Binário Go + Wails3 que age como bridge nativo entre o Canvas hospedado na VPS e o agent-server local. Conexão WSS outbound (passa qualquer NAT), reverse-proxy HTTP ↔ WS, sidecar reusando o launcher existente.</p>
+
+<h2>Problema</h2>
+<div class="card problem">
+  <p>Hoje, com o Canvas do OpenHands numa VPS e o usuário querendo que a execução aconteça na máquina local dele (atrás de NAT/firewall, sem expor portas), os caminhos informais são Tailscale, SSH reverso ou expor o agent-server da máquina local. Nenhum nativo, nenhum documentado, nenhum reverso.</p>
+  <p>O artefato <code>openhands-tray-design.md</code> na raiz do repo propõe o Tray. Esta doc-set (PRD/SPEC/TECH) é a revisão estruturada do mesmo, com três correções factuais em relação à base real e quatro questões em aberto para decisão antes de qualquer código.</p>
+</div>
+
+<h2>Correções factuais aplicadas</h2>
+<div class="grid2">
+  <div class="card ok">
+    <p><b>1. Spawn do agent-server.</b> O artefato prescreve <code>agent-server serve --backend-only</code>, mas esse comando não existe. O real é <code>uvx --from openhands-agent-server==&lt;ver&gt; agent-server --host 127.0.0.1 --port &lt;p&gt;</code> (<code>dev-safe.mjs:434-540</code>), ou — melhor — reusar <code>dev-with-automation.mjs --backend-only</code> que já orquestra tudo.</p>
+  </div>
+  <div class="card ok">
+    <p><b>2. Auth.</b> O artefato propõe um token Bearer estático. A base já tem um modelo melhor: session API key de 32 bytes (<code>crypto.randomBytes</code>), persistida em <code>~/.openhands/agent-canvas/session-api-key.txt</code>, compartilhada entre agent-server e automation. Reaproveitar evita silo novo de credenciais.</p>
+  </div>
+  <div class="card ok">
+    <p><b>3. Fronteira de repositório.</b> AGENTS.md é explícito: este repo é o frontend agent-canvas. O Tray (Go + Wails3) não pertence aqui — decidido no Sprint 01 que vai para um repo <b>irmão</b> do <code>software-agent-sdk</code> (nome de trabalho <code>JoaoNetoDev/openhands-tray</code>). Esta doc-set fica aqui porque é planning, não código.</p>
+  </div>
+  <div class="card">
+    <p><b>Bônus.</b> O wrapper <code>electron/main.mjs</code> (785 linhas) já implementa um desktop wrapper — para o caso mesma-máquina. Decidido no Sprint 01: o Tray <b>substitui</b> o Electron, mas de forma <b>faseada</b> (cross-host primeiro; remoção do Electron só com paridade). Ver PRD §8 RISCO-02.</p>
+  </div>
+</div>
+
+<h2>Decisões tomadas (Sprint 01)</h2>
+<div class="card ok">
+  <ul class="plain">
+    <li><b>RISCO-01</b> — Código Go vai para repo <b>irmão</b> do <code>software-agent-sdk</code> (nome de trabalho <code>JoaoNetoDev/openhands-tray</code>). Nada de Go neste repo.</li>
+    <li><b>RISCO-02</b> — Electron é <b>substituído</b>, mas de forma <b>faseada</b>: o Tray cobre cross-host primeiro; a remoção do Electron vira sprint próprio (v1.0+) com checklist de paridade. Não se deleta infra testada antes da paridade.</li>
+    <li><b>RISCO-04</b> — Auth = <b>Bearer estático</b> no MVP (provisionado pela UI), <b>Ed25519</b> no v1, mTLS descartado. A session key local é segredo <b>separado</b> que nunca cruza o fio.</li>
+    <li><b>QUESTÃO-01</b> — Endpoint WSS <b>e</b> gestão de tokens vivem na UI do Canvas: o instalador provisiona o bearer pela própria interface (tela de backends).</li>
+  </ul>
+</div>
+
+<h2>Resultado do spike (Sprint 01)</h2>
+<div class="card ok">
+  <p><b>19/19 verificações passaram</b> — VPS mock (WSS 8443) → Tray mock → agent-server mock (HTTP 18900, exige session key).</p>
+  <table>
+    <thead><tr><th>Propriedade validada</th><th>Resultado</th></tr></thead>
+    <tbody>
+      <tr><td>Fidelidade body/status/content-type (SHA-256)</td><td>idêntico ao controle direto</td></tr>
+      <tr><td>Framing binário &gt;64KB (100KB ida/volta)</td><td>íntegro, SHA-256 igual</td></tr>
+      <tr><td>Cancelamento mid-flight</td><td>499 em 3-5ms; abort visível no agent-server</td></tr>
+      <tr><td>Keepalive ping→pong</td><td>1ms</td></tr>
+      <tr><td>Bearer errado</td><td>rejeitado, close code 1008</td></tr>
+      <tr><td>Session key local não vaza pro VPS</td><td>confirmado (ausente nos headers; direto sem key = 401)</td></tr>
+      <tr><td>Latência da bridge</td><td>p50=1ms, p99=3ms</td></tr>
+    </tbody>
+  </table>
+  <p><b>Refinamento que o spike destravou:</b> o Tray <b>injeta</b> a session key local e <b>descarta</b> a que vier do cliente; o handler <code>/agent-tunnel</code> no <code>ingress.mjs</code> é um servidor WS <b>terminal</b> (não passthrough).</p>
+  <p><b>Limitação (fechada no Sprint 02):</b> o agent-server do spike era um mock Node; a fidelidade do <code>/server_info</code> real ficou para o Sprint 02, que rodou o <code>uvx</code> de verdade e repetiu a verificação — 6/6 contra o agent-server 1.46.0 real.</p>
+</div>
+
+<h2>Roadmap (PRD §7)</h2>
+<div class="timeline">
+  <div class="wave">
+    <div class="wave-badge" style="background:var(--ok-bg);color:var(--ok)">Sprint 01 ✓</div>
+    <div class="wave-card">
+      <h3>Validação de protocolo (concluído)</h3>
+      <p>Envelope WSS, framing binário, cancelamento e auth validados com 3 protótipos Node. 19/19 checks passaram. As 4 questões em aberto foram decididas.</p>
+      <span class="dep">depende de: nenhuma</span>
+    </div>
+  </div>
+  <div class="wave">
+    <div class="wave-badge" style="background:var(--ok-bg);color:var(--ok)">Sprint 02 ✓</div>
+    <div class="wave-card">
+      <h3>CLI-only Tray (concluído)</h3>
+      <p>Sem UI, sem auto-start. <code>openhands-tray -vps -token -workdir</code>. Spawn reusando <code>dev-with-automation.mjs --backend-only</code>. WSS sync request/response.</p>
+      <p>Core Go entregue e o handler <code>/agent-tunnel</code> implementado no <code>scripts/ingress.mjs</code>. Interop real Tray ↔ VPS verificada em 9/9 (agent-server mock) e 6/6 (agent-server <b>real</b>, 1.46.0) — a lacuna de fidelidade do spike está fechada. Ver <code>sprints/SPRINT-02.md</code>.</p>
+      <span class="dep">depende de: Sprint 01, RISCO-01 resolvido</span>
+    </div>
+  </div>
+  <div class="wave">
+    <div class="wave-badge">v1.0</div>
+    <div class="wave-card">
+      <h3>UI Wails3 + auto-start + auto-update</h3>
+      <p>Tray icon, Settings modal (Svelte), LaunchAgent/systemd/Scheduled Task. Auto-update via <code>go-update</code>.</p>
+      <span class="dep">depende de: MVP, RISCO-05 (Wails3 maturidade)</span>
+    </div>
+  </div>
+  <div class="wave">
+    <div class="wave-badge wave-pending">v1.5</div>
+    <div class="wave-card">
+      <h3>Streaming de eventos + sandbox opcional</h3>
+      <p>Substitui envelope sync por streaming. <code>SANDBOX_VOLUMES</code> por projeto limita filesystem exposto.</p>
+      <span class="dep">depende de: v1.0</span>
+    </div>
+  </div>
+  <div class="wave">
+    <div class="wave-badge wave-pending">v2</div>
+    <div class="wave-card">
+      <h3>Multi-agent + métricas</h3>
+      <p>Múltiplos trays na mesma máquina (um por workspace). Dashboard de métricas Prometheus.</p>
+      <span class="dep">depende de: v1.5</span>
+    </div>
+  </div>
+</div>
+
+<h2>Top 5 mudanças neste repo (SPEC §6)</h2>
+<table>
+  <thead><tr><th>Arquivo</th><th>Mudança</th><th>Por quê</th></tr></thead>
+  <tbody>
+    <tr><td><code>scripts/ingress.mjs</code></td><td>Handler WS <b>dedicado</b> <code>/agent-tunnel</code> (valida bearer + bridge de envelopes)</td><td>Termina a ponte WSS até o Tray remoto (não é passthrough)</td></tr>
+    <tr><td><code>scripts/dev-with-automation.mjs</code></td><td>Flag <code>--no-frontend</code> (ou documentar que <code>--backend-only</code> já cobre)</td><td>Para o Tray pular o frontend estático</td></tr>
+    <tr><td><code>AGENTS.md</code></td><td>Adicionar entrada na tabela de fronteira entre repos</td><td>Apontar <code>JoaoNetoDev/openhands-tray</code> como dono do binário</td></tr>
+    <tr><td><code>docs/DEVELOPMENT.md</code></td><td>Seção "Tray local agent (cross-host dev)"</td><td>Documentar o setup pra contribuidores</td></tr>
+    <tr><td><code>config/defaults.json</code></td><td>(futuro) Entrada <code>versions.agentTray</code></td><td>Sincronizar com release do Tray</td></tr>
+  </tbody>
+</table>
+
+<h2>Comandos de verificação</h2>
+<div class="card">
+  <pre style="margin:0; line-height:1.5; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:.88rem; white-space: pre-wrap;">
+# Confirmar que o agente-server é o spawn via uvx (não "serve --backend-only")
+nl -ba scripts/dev-safe.mjs | sed -n '430,540p'
+
+# Confirmar a flag --backend-only está só no CLI do agent-canvas
+grep -n "backend-only" bin/agent-canvas.mjs scripts/dev-with-automation.mjs
+
+# Confirmar a sessão API key é 32 bytes aleatórios
+grep -n "randomBytes\|session-api-key" scripts/dev-with-automation.mjs
+
+# Confirmar que Electron wrapper existe e roda mesmo caso
+ls electron/main.mjs && wc -l electron/main.mjs
+
+# Confirmar fronteira entre repos declarada no AGENTS.md
+grep -n "This repository\|software-agent-sdk\|typescript-client" AGENTS.md | head</pre>
+</div>
+
+<h2>Próximo passo</h2>
+<div class="card problem">
+  <p><b>Bloqueio único restante:</b> confirmar o nome do repo irmão para o código Go (nome de trabalho <code>JoaoNetoDev/openhands-tray</code>).</p>
+  <p>Com isso, o Sprint 02 fica desbloqueado: criar o repo irmão, implementar <code>internal/tunnel</code> e <code>internal/proxy</code> em Go espelhando o Tray mock do spike, reusar <code>dev-with-automation.mjs --backend-only</code> para o sidecar, adicionar o handler <code>/agent-tunnel</code> ao <code>scripts/ingress.mjs</code>, e rodar o agent-server <b>real</b> (<code>uvx</code>) para fechar a fidelidade do <code>/server_info</code> que o spike deixou em aberto.</p>
+</div>
+
+</div>
+</body>
+</html>
