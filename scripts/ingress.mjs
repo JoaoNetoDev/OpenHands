@@ -33,6 +33,11 @@ import {
   matchesPathPrefix,
   proxyServerInfoRequest,
 } from "./proxy-utils.mjs";
+import {
+  AGENT_TUNNEL_PATH,
+  createAgentTunnel,
+  resolveAgentTunnelToken,
+} from "./agent-tunnel.mjs";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Configuration
@@ -46,6 +51,8 @@ function parseArgs() {
     defaultBackend: null,
     noReferrerPrefixes: [],
     runtimeServicesInfo: null,
+    agentTunnelToken: null,
+    agentTunnelRoutes: [],
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -77,6 +84,21 @@ function parseArgs() {
       case "--runtime-services-info":
         config.runtimeServicesInfo = args[++i] || null;
         break;
+      case "--agent-tunnel-token":
+        config.agentTunnelToken = args[++i] || null;
+        break;
+      case "--agent-tunnel-route": {
+        const prefix = args[++i];
+        if (!prefix?.startsWith("/")) {
+          throw new Error(
+            `--agent-tunnel-route value must start with '/': ${prefix ?? "(empty)"}`,
+          );
+        }
+        // Repeatable: the agent-server exposes /server_info at the root and
+        // everything else under /api, so one prefix is rarely enough.
+        config.agentTunnelRoutes.push(prefix);
+        break;
+      }
       case "-h":
       case "--help":
         showHelp();
@@ -104,6 +126,14 @@ OPTIONS:
                               responses under <p>. For upstreams whose URL
                               carries a credential in the query string.
   --runtime-services-info     Runtime services JSON for /server_info
+  --agent-tunnel-token <tok>  Enable the /agent-tunnel WebSocket for OpenHands
+                              Tray connections; <tok> is the Bearer token the
+                              Tray must present
+  --agent-tunnel-route <p>    Route HTTP requests under <p> over the active
+                              Tray tunnel instead of a local backend.
+                              Repeatable; give it once per prefix the
+                              agent-server serves (for example /server_info
+                              and /api)
   -h, --help                  Show this help
 
 ENVIRONMENT VARIABLES:
@@ -112,6 +142,7 @@ ENVIRONMENT VARIABLES:
   INGRESS_DEFAULT             Default backend URL
   INGRESS_RUNTIME_SERVICES_INFO
                               Runtime services JSON for /server_info
+  INGRESS_AGENT_TUNNEL_TOKEN  Bearer token enabling /agent-tunnel
 
 EXAMPLES:
   # Basic setup with agent server and automation
@@ -154,6 +185,9 @@ function buildConfig(args, env = process.env) {
     noReferrerPrefixes: args.noReferrerPrefixes ?? [],
     runtimeServicesInfo:
       args.runtimeServicesInfo || env.INGRESS_RUNTIME_SERVICES_INFO || null,
+    agentTunnelToken:
+      args.agentTunnelToken || resolveAgentTunnelToken(env) || null,
+    agentTunnelRoutes: args.agentTunnelRoutes ?? [],
   };
 }
 
@@ -166,10 +200,35 @@ export function startIngress(config) {
   const proxy = createProxyHandlers({ label: `ingress:${config.port}` });
   const uninstallDiagnostics = proxy.installDiagnostics();
 
+  // Opt-in: the tunnel is only mounted when a bearer token is configured, so
+  // default ingress behaviour is unchanged.
+  const agentTunnel = config.agentTunnelToken
+    ? createAgentTunnel({ bearerToken: config.agentTunnelToken })
+    : null;
+  const agentTunnelRoutes = config.agentTunnelRoutes ?? [];
+  const servesOverTunnel = (url) =>
+    Boolean(agentTunnel) &&
+    agentTunnelRoutes.some((prefix) => matchesPathPrefix(url, prefix));
+
   const noReferrerPrefixes = config.noReferrerPrefixes ?? [];
 
   const server = createServer((req, res) => {
     const url = req.url ?? "/";
+
+    // A tunnel-backed route takes precedence: the whole point is that the
+    // agent-server lives on the Tray's machine, not on a local backend. This
+    // also runs before the /server_info interception below, so the Tray's
+    // server answers the compatibility bootstrap.
+    if (agentTunnel && servesOverTunnel(url)) {
+      if (!agentTunnel.hasTray()) {
+        res.writeHead(502, { "Content-Type": "text/plain" });
+        res.end("No OpenHands Tray is connected");
+        return;
+      }
+      void agentTunnel.proxyHttp(req, res);
+      return;
+    }
+
     const backend = route(url);
 
     if (!backend) {
@@ -199,7 +258,16 @@ export function startIngress(config) {
 
   // Handle WebSocket upgrades
   server.on("upgrade", (req, socket, head) => {
-    const backend = route(req.url ?? "/");
+    const url = req.url ?? "/";
+
+    // The tunnel is a terminal WebSocket endpoint, not a passthrough: the Tray
+    // is the upstream, and it lives behind this socket rather than at a URL.
+    if (agentTunnel && matchesPathPrefix(url, AGENT_TUNNEL_PATH)) {
+      agentTunnel.handleUpgrade(req, socket, head);
+      return;
+    }
+
+    const backend = route(url);
 
     if (!backend) {
       socket.destroy();
@@ -222,6 +290,11 @@ export function startIngress(config) {
     }
   });
   server.on("close", uninstallDiagnostics);
+  if (agentTunnel) {
+    server.on("close", () => {
+      void agentTunnel.close();
+    });
+  }
 
   server.listen(config.port, () => {
     console.log("");
