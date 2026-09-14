@@ -47,7 +47,7 @@ export function buildWriteFileCommand(
  * Chunks the Uint8Array to avoid blowing the call stack with
  * `String.fromCharCode(...bytes)` on large inputs.
  */
-async function toBase64(bytes: ArrayBuffer): Promise<string> {
+export async function toBase64(bytes: ArrayBuffer): Promise<string> {
   const array = new Uint8Array(bytes);
   const chunkSize = 0x8000;
   let binary = "";
