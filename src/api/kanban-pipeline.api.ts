@@ -1,6 +1,71 @@
 import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
-import { escapeSingleQuoted } from "#/api/kanban-sintering.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import {
+  escapeSingleQuoted,
+  htmlToSimpleMarkdown,
+} from "#/api/kanban-sintering.api";
 import { isValidFeatureSlug } from "#/utils/kanban-slug";
+import type { KanbanTask } from "#/types/kanban";
+
+/**
+ * Builds the initial user message for the conversation that will run the
+ * `/featdevelop` skill for a given card (TECH §2.3). Pure function — no
+ * side effects — so it is trivial to unit test presence/absence of
+ * description and additional context independently of
+ * `startFeatdevelopConversation`.
+ */
+export function buildFeatdevelopInitialMessage(
+  task: KanbanTask,
+  contextText: string,
+): string {
+  return [
+    `Use a skill /featdevelop para planejar a feature "${task.title}" com slug "${task.featureSlug}".`,
+    task.description ? `Descrição: ${task.description}` : null,
+    contextText ? `Contexto adicional do usuário:\n${contextText}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/**
+ * Starts a new conversation running the `/featdevelop` skill for a
+ * level-1 card that already has a `featureSlug` (TECH §2.3). Never
+ * throws — always resolves to a discriminated result so callers
+ * (`run-agent-button.tsx`, a later sprint) can show a toast instead of
+ * crashing the board.
+ *
+ * `AppConversationStartTask.app_conversation_id` is the id of the
+ * conversation itself (`id` is the id of the creation *task*, not the
+ * conversation —
+ * `src/api/conversation-service/agent-server-conversation-service.types.ts:103-111`).
+ * On the local backend `app_conversation_id` already comes populated equal
+ * to `id`, but using the correct field avoids breaking when the Cloud
+ * backend diverges the two values.
+ */
+export async function startFeatdevelopConversation(
+  workspacePath: string,
+  task: KanbanTask,
+): Promise<
+  { ok: true; conversationId: string } | { ok: false; error: string }
+> {
+  try {
+    const contextText = htmlToSimpleMarkdown(task.userContextHtml ?? "");
+    const result = await AgentServerConversationService.createConversation({
+      initialUserMsg: buildFeatdevelopInitialMessage(task, contextText),
+      workingDirOverride: workspacePath,
+    });
+    if (!result.app_conversation_id) {
+      return { ok: false, error: "Conversa criada sem id retornado" };
+    }
+    return { ok: true, conversationId: result.app_conversation_id };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Falha ao iniciar conversa",
+    };
+  }
+}
 
 /**
  * Reads a feature doc (PRD/TECH/SPEC/sprint file) from the workspace

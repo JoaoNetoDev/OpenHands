@@ -16,13 +16,12 @@ import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { KanbanColumn } from "./kanban-column";
+import { getColumnsForTask } from "./kanban-column-presets";
 import { CreateTaskModal } from "./create-task-modal";
 import { DeleteTaskConfirmDialog } from "./delete-task-confirm-dialog";
 import { CardContextPanel } from "./card-context-panel";
 import { CardAttachments } from "./card-attachments";
 import { SinterizeButton } from "./sinterize-button";
-
-const COLUMNS: KanbanColumnId[] = ["todo", "in_progress", "done"];
 
 // Stable reference so the Zustand selector below doesn't return a fresh
 // array on every call when a task has no children yet — a fresh `[]`
@@ -187,15 +186,23 @@ export function KanbanTaskDrawer({
 
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {COLUMNS.map((columnId) => (
-              <KanbanColumn
-                key={columnId}
-                workspaceId={workspaceId}
-                columnId={columnId}
-                tasks={children.filter((c) => c.columnId === columnId)}
-                onCardClick={setOpenChildTask}
-              />
-            ))}
+            {/* Children are always level 2/3 and never carry a `featureSlug`
+             * (only level-1 cards expose `FeatureSlugInput` — SPEC §4), so
+             * this board is always the generic 3-column preset. Still goes
+             * through `getColumnsForTask` (instead of a local constant) so
+             * the mapping stays in one place. */}
+            {getColumnsForTask({ featureSlug: undefined } as KanbanTask).map(
+              ({ id: columnId, label }) => (
+                <KanbanColumn
+                  key={columnId}
+                  workspaceId={workspaceId}
+                  columnId={columnId}
+                  label={label}
+                  tasks={children.filter((c) => c.columnId === columnId)}
+                  onCardClick={setOpenChildTask}
+                />
+              ),
+            )}
           </div>
         </DndContext>
       </div>

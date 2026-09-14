@@ -14,11 +14,10 @@ import { useSystemSettings } from "#/hooks/use-system-settings";
 import { useKanbanBoardStore } from "#/stores/kanban-board-store";
 import type { KanbanColumnId, KanbanTask } from "#/types/kanban";
 import { KanbanColumn } from "#/components/features/kanban/kanban-column";
+import { getColumnsForTask } from "#/components/features/kanban/kanban-column-presets";
 import { CreateTaskModal } from "#/components/features/kanban/create-task-modal";
 import { KanbanTaskDrawer } from "#/components/features/kanban/kanban-task-drawer";
 import { BrandButton } from "#/components/features/settings/brand-button";
-
-const COLUMNS: KanbanColumnId[] = ["todo", "in_progress", "done"];
 
 // Stable reference so the Zustand selector below doesn't return a fresh
 // array on every call when the workspace has no tasks yet — a fresh `[]`
@@ -60,6 +59,20 @@ export default function KanbanBoardRoute() {
 
   const level1Tasks = allTasks.filter((task) => task.parentId === null);
   const hasTasks = level1Tasks.length > 0;
+
+  // A board can mix level-1 cards with different column presets (some with
+  // `featureSlug`, some without — SPEC §2.7 / TECH §2.3). The column set is
+  // therefore no longer a single fixed constant: it's the union of each
+  // visible card's own preset, deduplicated by `id` and keeping first-seen
+  // order so the featdevelop columns and the generic columns each render
+  // once, in a stable order, even when both presets are present at once.
+  const columnsById = new Map<KanbanColumnId, string>();
+  level1Tasks.forEach((task) => {
+    getColumnsForTask(task).forEach((column) => {
+      if (!columnsById.has(column.id)) columnsById.set(column.id, column.label);
+    });
+  });
+  const columns = Array.from(columnsById, ([id, label]) => ({ id, label }));
 
   if (!workspaceId) {
     return (
@@ -112,11 +125,12 @@ export default function KanbanBoardRoute() {
             data-testid="kanban-board-columns"
             className="grid grid-cols-1 sm:grid-cols-3 gap-3"
           >
-            {COLUMNS.map((columnId) => (
+            {columns.map(({ id: columnId, label }) => (
               <KanbanColumn
                 key={columnId}
                 workspaceId={workspaceId}
                 columnId={columnId}
+                label={label}
                 tasks={level1Tasks.filter((task) => task.columnId === columnId)}
                 onCardClick={setOpenTask}
               />

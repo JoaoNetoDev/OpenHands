@@ -8,15 +8,11 @@ import { I18nKey } from "#/i18n/declaration";
 import type { KanbanColumnId, KanbanTask } from "#/types/kanban";
 import { KanbanCard } from "./kanban-card";
 
-const COLUMN_TITLE_KEY: Record<"todo" | "in_progress" | "done", I18nKey> = {
-  todo: I18nKey.KANBAN$COLUMN_TODO,
-  in_progress: I18nKey.KANBAN$COLUMN_IN_PROGRESS,
-  done: I18nKey.KANBAN$COLUMN_DONE,
-};
-
 interface KanbanColumnProps {
   workspaceId: string;
   columnId: KanbanColumnId;
+  /** Display label for this column, resolved by the caller via `getColumnsForTask` (SPEC §2.7) — the column no longer owns a fixed id-to-label map, since a board can mix the 3-column generic preset and the 6-column featdevelop preset across cards. */
+  label: string;
   tasks: KanbanTask[];
   onCardClick?: (task: KanbanTask) => void;
 }
@@ -28,6 +24,7 @@ interface KanbanColumnProps {
 export function KanbanColumn({
   workspaceId,
   columnId,
+  label,
   tasks,
   onCardClick,
 }: KanbanColumnProps) {
@@ -43,9 +40,7 @@ export function KanbanColumn({
         isOver ? "bg-[var(--oh-interactive-hover)]" : "bg-base-secondary"
       }`}
     >
-      <h3 className="text-sm font-semibold text-white">
-        {t(COLUMN_TITLE_KEY[columnId as "todo" | "in_progress" | "done"])}
-      </h3>
+      <h3 className="text-sm font-semibold text-white">{label}</h3>
       <SortableContext
         items={sortedTasks.map((task) => task.id)}
         strategy={verticalListSortingStrategy}

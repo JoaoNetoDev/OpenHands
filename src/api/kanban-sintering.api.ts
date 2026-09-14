@@ -65,7 +65,7 @@ export async function toBase64(bytes: ArrayBuffer): Promise<string> {
  * text content, converting list items to `- ` bullets and block-level tags
  * to line breaks.
  */
-function htmlToSimpleMarkdown(html: string): string {
+export function htmlToSimpleMarkdown(html: string): string {
   if (!html?.trim()) return "";
   const container = document.createElement("div");
   container.innerHTML = html;

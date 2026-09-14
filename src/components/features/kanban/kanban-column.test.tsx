@@ -33,7 +33,12 @@ describe("KanbanColumn", () => {
   it("shows the empty state when there are no tasks", () => {
     renderWithProviders(
       <DndContext>
-        <KanbanColumn workspaceId={WORKSPACE_ID} columnId="todo" tasks={[]} />
+        <KanbanColumn
+          workspaceId={WORKSPACE_ID}
+          columnId="todo"
+          label={I18nKey.KANBAN$COLUMN_TODO}
+          tasks={[]}
+        />
       </DndContext>,
     );
 
@@ -53,6 +58,7 @@ describe("KanbanColumn", () => {
         <KanbanColumn
           workspaceId={WORKSPACE_ID}
           columnId="todo"
+          label={I18nKey.KANBAN$COLUMN_TODO}
           tasks={tasks}
         />
       </DndContext>,

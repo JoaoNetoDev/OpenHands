@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { KanbanTask } from "#/types/kanban";
 
 vi.mock("#/api/runtime-service/agent-server-runtime-service", () => ({
   default: {
@@ -6,17 +7,52 @@ vi.mock("#/api/runtime-service/agent-server-runtime-service", () => ({
   },
 }));
 
+vi.mock(
+  "#/api/conversation-service/agent-server-conversation-service.api",
+  () => ({
+    default: {
+      createConversation: vi.fn(),
+    },
+  }),
+);
+
 import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
-import { listFeatureSprintFiles, readFeatureDoc } from "./kanban-pipeline.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import {
+  buildFeatdevelopInitialMessage,
+  listFeatureSprintFiles,
+  readFeatureDoc,
+  startFeatdevelopConversation,
+} from "./kanban-pipeline.api";
 
 const executeCommandMock =
   AgentServerRuntimeService.executeCommand as unknown as ReturnType<
     typeof vi.fn
   >;
 
+const createConversationMock =
+  AgentServerConversationService.createConversation as unknown as ReturnType<
+    typeof vi.fn
+  >;
+
 beforeEach(() => {
   executeCommandMock.mockReset();
+  createConversationMock.mockReset();
 });
+
+function buildTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
+  return {
+    id: "task-1",
+    parentId: null,
+    level: 1,
+    title: "Minha feature",
+    columnId: "featdevelop_todo",
+    order: 0,
+    createdAt: new Date().toISOString(),
+    featureSlug: "minha-feature",
+    ...overrides,
+  };
+}
 
 describe("readFeatureDoc", () => {
   it("returns exists: true with content when exit_code is 0", async () => {
@@ -212,5 +248,130 @@ describe("defense in depth: internal slug revalidation", () => {
 
     expect(result).toEqual({ exists: true, content: "# SPEC" });
     expect(executeCommandMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("buildFeatdevelopInitialMessage", () => {
+  it("includes title and slug, and omits description/context when absent", () => {
+    const task = buildTask({ description: undefined });
+
+    const message = buildFeatdevelopInitialMessage(task, "");
+
+    expect(message).toContain("Minha feature");
+    expect(message).toContain("minha-feature");
+    expect(message).not.toContain("Descrição:");
+    expect(message).not.toContain("Contexto adicional do usuário");
+  });
+
+  it("includes the description when present", () => {
+    const task = buildTask({ description: "Uma descrição qualquer" });
+
+    const message = buildFeatdevelopInitialMessage(task, "");
+
+    expect(message).toContain("Descrição: Uma descrição qualquer");
+  });
+
+  it("includes the additional context when present", () => {
+    const task = buildTask({ description: undefined });
+
+    const message = buildFeatdevelopInitialMessage(task, "algum contexto");
+
+    expect(message).toContain("Contexto adicional do usuário:\nalgum contexto");
+  });
+});
+
+describe("startFeatdevelopConversation", () => {
+  it("returns ok: true with conversationId = app_conversation_id on success", async () => {
+    createConversationMock.mockResolvedValueOnce({
+      id: "task-id-123",
+      created_by_user_id: null,
+      status: "READY",
+      detail: null,
+      app_conversation_id: "conversation-id-456",
+      agent_server_url: null,
+      request: {},
+      created_at: "",
+      updated_at: "",
+    });
+
+    const result = await startFeatdevelopConversation(
+      "/workspace",
+      buildTask(),
+    );
+
+    expect(result).toEqual({ ok: true, conversationId: "conversation-id-456" });
+  });
+
+  it("returns ok: false with the error message when createConversation rejects", async () => {
+    createConversationMock.mockRejectedValueOnce(
+      new Error("sem backend disponível"),
+    );
+
+    const result = await startFeatdevelopConversation(
+      "/workspace",
+      buildTask(),
+    );
+
+    expect(result).toEqual({ ok: false, error: "sem backend disponível" });
+  });
+
+  it("returns ok: false when app_conversation_id is missing/null in the response, never assuming success with an undefined id", async () => {
+    createConversationMock.mockResolvedValueOnce({
+      id: "task-id-123",
+      created_by_user_id: null,
+      status: "STARTING_CONVERSATION",
+      detail: null,
+      app_conversation_id: null,
+      agent_server_url: null,
+      request: {},
+      created_at: "",
+      updated_at: "",
+    });
+
+    const result = await startFeatdevelopConversation(
+      "/workspace",
+      buildTask(),
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeTruthy();
+    }
+  });
+
+  it("calling it twice creates two distinct conversations (RF-06)", async () => {
+    createConversationMock
+      .mockResolvedValueOnce({
+        id: "task-1",
+        created_by_user_id: null,
+        status: "READY",
+        detail: null,
+        app_conversation_id: "conversation-1",
+        agent_server_url: null,
+        request: {},
+        created_at: "",
+        updated_at: "",
+      })
+      .mockResolvedValueOnce({
+        id: "task-2",
+        created_by_user_id: null,
+        status: "READY",
+        detail: null,
+        app_conversation_id: "conversation-2",
+        agent_server_url: null,
+        request: {},
+        created_at: "",
+        updated_at: "",
+      });
+
+    const first = await startFeatdevelopConversation("/workspace", buildTask());
+    const second = await startFeatdevelopConversation(
+      "/workspace",
+      buildTask(),
+    );
+
+    expect(createConversationMock).toHaveBeenCalledTimes(2);
+    expect(first).toEqual({ ok: true, conversationId: "conversation-1" });
+    expect(second).toEqual({ ok: true, conversationId: "conversation-2" });
   });
 });

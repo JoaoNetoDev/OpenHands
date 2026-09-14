@@ -52,6 +52,7 @@ function TestBoard() {
           key={columnId}
           workspaceId={WORKSPACE_ID}
           columnId={columnId}
+          label={columnId}
           tasks={tasks.filter(
             (t) => t.columnId === columnId && t.parentId === null,
           )}
