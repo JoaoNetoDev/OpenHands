@@ -78,6 +78,41 @@ describe("useKanbanBoardStore", () => {
       expect(getBoards(WORKSPACE_A)[0].name).toBe("Renamed");
     });
 
+    it("updates a board's checklist (F-V2S3-1)", () => {
+      const {
+        createBoard: create,
+        updateBoardChecklist,
+        getBoards,
+      } = useKanbanBoardStore.getState();
+      const board = create(WORKSPACE_A, "With checklist")!;
+      const checklist = [{ id: "item-1", text: "Definir escopo", done: false }];
+
+      const ok = updateBoardChecklist(WORKSPACE_A, board.id, checklist);
+
+      expect(ok).toBe(true);
+      expect(getBoards(WORKSPACE_A)[0].checklist).toEqual(checklist);
+    });
+
+    it("does not affect other boards' checklists when updating one board", () => {
+      const {
+        createBoard: create,
+        updateBoardChecklist,
+        getBoards,
+      } = useKanbanBoardStore.getState();
+      const boardA = create(WORKSPACE_A, "A")!;
+      const boardB = create(WORKSPACE_A, "B")!;
+
+      updateBoardChecklist(WORKSPACE_A, boardA.id, [
+        { id: "item-1", text: "Only A", done: false },
+      ]);
+
+      const boards = getBoards(WORKSPACE_A);
+      expect(boards.find((b) => b.id === boardA.id)?.checklist).toHaveLength(1);
+      expect(
+        boards.find((b) => b.id === boardB.id)?.checklist ?? [],
+      ).toHaveLength(0);
+    });
+
     it("deletes a board and all of its tasks", () => {
       const {
         createBoard: create,

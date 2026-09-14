@@ -7,6 +7,7 @@ import { useKanbanBoardStore } from "#/stores/kanban-board-store";
 import type { KanbanBoard, KanbanTask } from "#/types/kanban";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import { BoardDetailPanel } from "#/components/features/kanban/board-detail-panel";
 
 // Stable references so the Zustand selectors below don't return a fresh
 // array on every call when a workspace/board has none yet — a fresh `[]`
@@ -176,6 +177,8 @@ export default function BoardListRoute() {
   const [createOpen, setCreateOpen] = useState(false);
   const [boardToRename, setBoardToRename] = useState<KanbanBoard | null>(null);
   const [boardToDelete, setBoardToDelete] = useState<KanbanBoard | null>(null);
+  const [boardDetailId, setBoardDetailId] = useState<string | null>(null);
+  const boardToShowDetail = boards.find((b) => b.id === boardDetailId) ?? null;
 
   if (!workspaceId) {
     return (
@@ -242,6 +245,14 @@ export default function BoardListRoute() {
               </button>
               <div className="flex gap-2">
                 <BrandButton
+                  testId={`board-list-detail-${board.id}`}
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setBoardDetailId(board.id)}
+                >
+                  {t(I18nKey.KANBAN_BOARD_LIST$DETAIL_BUTTON)}
+                </BrandButton>
+                <BrandButton
                   testId={`board-list-rename-${board.id}`}
                   type="button"
                   variant="secondary"
@@ -299,6 +310,12 @@ export default function BoardListRoute() {
         <DeleteBoardConfirmDialog
           board={boardToDelete}
           onClose={() => setBoardToDelete(null)}
+        />
+      )}
+      {boardToShowDetail && (
+        <BoardDetailPanel
+          board={boardToShowDetail}
+          onClose={() => setBoardDetailId(null)}
         />
       )}
     </div>

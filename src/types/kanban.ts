@@ -16,6 +16,14 @@ export interface KanbanTaskAttachment {
   contentBase64: string; // conteúdo bruto do arquivo, guardado até a sinterização
 }
 
+/** Item de checklist reutilizável em qualquer nível — quadro ou tarefa
+ * (SPEC §2.5). */
+export interface KanbanChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
 /**
  * A board groups tasks within a workspace (SPEC §2.4). Multiple boards can
  * exist per `workspaceId`; tasks are partitioned by `boardId`, not
@@ -26,6 +34,7 @@ export interface KanbanBoard {
   workspaceId: string;
   name: string;
   createdAt: string; // ISO
+  checklist?: KanbanChecklistItem[];
 }
 
 export interface KanbanTask {
@@ -45,4 +54,5 @@ export interface KanbanTask {
   lastSinteredAt?: string; // ISO — presença = indicador visual de sinterização
   featureSlug?: string; // presença = card usa o preset "featdevelop"
   linkedConversationId?: string;
+  checklist?: KanbanChecklistItem[];
 }

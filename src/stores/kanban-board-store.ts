@@ -1,7 +1,12 @@
 import { create, type StoreApi } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { v4 as uuidv4 } from "uuid";
-import type { KanbanBoard, KanbanColumnId, KanbanTask } from "#/types/kanban";
+import type {
+  KanbanBoard,
+  KanbanChecklistItem,
+  KanbanColumnId,
+  KanbanTask,
+} from "#/types/kanban";
 import { collectDescendantIds, reindexAfterMove } from "#/utils/kanban-tree";
 import i18n from "#/i18n";
 import { I18nKey } from "#/i18n/declaration";
@@ -50,8 +55,14 @@ interface KanbanBoardActions {
         | "featureSlug"
         | "linkedConversationId"
         | "columnId"
+        | "checklist"
       >
     >,
+  ) => boolean;
+  updateBoardChecklist: (
+    workspaceId: string,
+    boardId: string,
+    checklist: KanbanChecklistItem[],
   ) => boolean;
   deleteTask: (boardId: string, taskId: string) => boolean;
   moveTask: (
@@ -224,6 +235,15 @@ export const useKanbanBoardStore = create<KanbanBoardStore>()(
           set,
           workspaceId,
           boards.map((b) => (b.id === boardId ? { ...b, name: trimmed } : b)),
+        );
+      },
+
+      updateBoardChecklist: (workspaceId, boardId, checklist) => {
+        const boards = get().boardsByWorkspaceId[workspaceId] ?? [];
+        return trySetBoards(
+          set,
+          workspaceId,
+          boards.map((b) => (b.id === boardId ? { ...b, checklist } : b)),
         );
       },
 

@@ -21,6 +21,7 @@ import { CreateTaskModal } from "./create-task-modal";
 import { DeleteTaskConfirmDialog } from "./delete-task-confirm-dialog";
 import { CardContextPanel } from "./card-context-panel";
 import { CardAttachments } from "./card-attachments";
+import { ChecklistPanel } from "./checklist-panel";
 import { SinterizeButton } from "./sinterize-button";
 import { FeatureSlugInput } from "./feature-slug-input";
 import { RunAgentButton } from "./run-agent-button";
@@ -154,6 +155,12 @@ export function KanbanTaskDrawer({
 
         <CardContextPanel workspaceId={workspaceId} task={task} />
         <CardAttachments workspaceId={workspaceId} task={task} />
+        <ChecklistPanel
+          items={task.checklist ?? []}
+          onChange={(checklist) =>
+            updateTask(workspaceId, task.id, { checklist })
+          }
+        />
 
         {/* The featdevelop pipeline UI is exclusive to level-1 cards
          * (SPEC §4) — sub-tasks (level 2/3) never carry a `featureSlug` and
