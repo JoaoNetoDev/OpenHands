@@ -7,6 +7,7 @@ import {
   Server,
   Settings,
   PanelsTopLeft,
+  LayoutGrid,
 } from "lucide-react";
 import { OpenHandsLogoButton } from "#/components/shared/buttons/openhands-logo-button";
 import { NavigationLink } from "#/components/shared/navigation-link";
@@ -198,6 +199,14 @@ export function SidebarRailBody({
           testId="sidebar-conversations-link"
           collapsed={collapsed}
           icon={<Plus width={ICON_SIZE} height={ICON_SIZE} />}
+        />
+        <SidebarNavLink
+          to="/board"
+          label={t(I18nKey.NAV$BOARD)}
+          testId="sidebar-board-link"
+          collapsed={collapsed}
+          pinAction={buildPinAction("/board", "sidebar-pin-home-toggle-board")}
+          icon={<LayoutGrid width={ICON_SIZE} height={ICON_SIZE} />}
         />
         <SidebarNavLink
           to={CUSTOMIZE_PATH}

@@ -15,6 +15,7 @@ export default [
     ),
     route("conversations/:conversationId", "routes/conversation.tsx"),
     route("launch", "routes/launch.tsx"),
+    route("board", "routes/kanban-board.tsx"),
     route("customize", "routes/extensions-hub.tsx"),
     route("skills", "routes/skills-settings.tsx"),
     route("plugins", "routes/skills-plugins.tsx"),

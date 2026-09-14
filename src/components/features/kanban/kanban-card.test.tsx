@@ -1,6 +1,6 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { DndContext } from "@dnd-kit/core";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { renderWithProviders } from "test-utils";
 import { I18nKey } from "#/i18n/declaration";
 import { KanbanCard } from "#/components/features/kanban/kanban-card";
@@ -82,5 +82,44 @@ describe("KanbanCard", () => {
     expect(progress).toHaveTextContent(I18nKey.KANBAN$SUBTASK_PROGRESS);
     expect(progress).toHaveAttribute("data-completed", "2");
     expect(progress).toHaveAttribute("data-total", "5");
+  });
+
+  // F-K3-1: the card is both clickable (opens the task drawer) and a
+  // `@dnd-kit` sortable drag source, so keyboard activation must not
+  // collide with `KeyboardSensor`'s own Enter/Space drag pickup. Enter is
+  // reserved for "open the drawer" (see the `handleKeyDown` comment in
+  // `kanban-card.tsx`).
+  it("calls the click handler when Enter is pressed on the card", () => {
+    const task = makeTask();
+    const onClick = vi.fn();
+    renderWithProviders(
+      <DndContext>
+        <KanbanCard workspaceId={WORKSPACE_ID} task={task} onClick={onClick} />
+      </DndContext>,
+    );
+
+    fireEvent.keyDown(screen.getByTestId(`kanban-card-${task.id}`), {
+      key: "Enter",
+      code: "Enter",
+    });
+
+    expect(onClick).toHaveBeenCalledWith(task);
+  });
+
+  it("does not call the click handler when Space is pressed on the card (reserved for keyboard drag pickup)", () => {
+    const task = makeTask();
+    const onClick = vi.fn();
+    renderWithProviders(
+      <DndContext>
+        <KanbanCard workspaceId={WORKSPACE_ID} task={task} onClick={onClick} />
+      </DndContext>,
+    );
+
+    fireEvent.keyDown(screen.getByTestId(`kanban-card-${task.id}`), {
+      key: " ",
+      code: "Space",
+    });
+
+    expect(onClick).not.toHaveBeenCalled();
   });
 });

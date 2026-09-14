@@ -1,6 +1,5 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import type { KanbanTask } from "#/types/kanban";
@@ -31,15 +30,46 @@ export function KanbanCard({ workspaceId, task, onClick }: KanbanCardProps) {
     transition,
   };
 
+  const handleClick = () => onClick?.(task);
+
+  // `@dnd-kit`'s `KeyboardSensor` (attached via `listeners.onKeyDown` below)
+  // treats both Enter and Space as its "pick up / drop the drag" keys by
+  // default (`defaultKeyboardCodes.start`/`end` include both). Since this
+  // card is simultaneously a clickable element (opens the task drawer) and
+  // a `useSortable` drag source, the same keystroke can't mean both things.
+  // Resolution (same split used by native controls: a `<button>` activates
+  // on Enter's keydown but on Space's keyup, precisely to allow this kind
+  // of disambiguation): Enter is reserved exclusively for "open the
+  // drawer" and is never forwarded to `@dnd-kit` — it's `preventDefault`ed
+  // and handled here instead, so it can never also start a keyboard drag.
+  // Every other key (notably Space, plus arrows/Escape/Tab while a drag is
+  // in progress) is forwarded unchanged to `listeners.onKeyDown`, so
+  // keyboard-driven reordering (RNF-02) keeps working exactly as before.
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return; // ignore bubbling from any future nested interactive child
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleClick();
+      return;
+    }
+    listeners?.onKeyDown?.(event);
+  };
+
   return (
-    <Card
+    // A plain `div` rather than HeroUI's `Card` — `Card`'s clickable
+    // behavior is built on react-aria's `usePress`, which ignores the
+    // interaction once `@dnd-kit`'s sortable `listeners` (spread below,
+    // needed for drag) are attached to the same node, so `onPress`/`onClick`
+    // never fires. A native `onClick` on a plain element is unaffected.
+    <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
       data-testid={`kanban-card-${task.id}`}
-      className="p-3 cursor-pointer bg-base-secondary border border-[var(--oh-border)]"
-      onClick={() => onClick?.(task)}
+      className="flex flex-col rounded-xl shadow-md p-3 cursor-pointer bg-base-secondary border border-[var(--oh-border)]"
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
     >
       <p className="text-sm font-medium text-white">{task.title}</p>
       {children.length > 0 && (
@@ -55,6 +85,6 @@ export function KanbanCard({ workspaceId, task, onClick }: KanbanCardProps) {
           })}
         </p>
       )}
-    </Card>
+    </div>
   );
 }
