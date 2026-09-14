@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Sistema v2 — revisão pós-QA</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 780px; margin: 40px auto; padding: 0 20px; line-height: 1.6; background: Canvas; color: CanvasText; }
+  h1 { font-size: 1.6rem; } h2 { font-size: 1.2rem; margin-top: 2rem; border-bottom: 1px solid rgba(128,128,128,.3); padding-bottom: .3rem; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+  .wave1 { background: #dbeafe; color: #1e3a8a; } .wave2 { background: #fde68a; color: #78350f; } .wave3 { background: #bbf7d0; color: #14532d; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  td, th { border: 1px solid rgba(128,128,128,.3); padding: 8px 10px; text-align: left; font-size: .9rem; }
+  .risk { background: rgba(248,113,113,.1); border-left: 3px solid #f87171; padding: 10px 14px; margin: .8rem 0; }
+  .out { background: rgba(148,163,184,.15); border-left: 3px solid #94a3b8; padding: 10px 14px; margin: .8rem 0; }
+</style>
+</head>
+<body>
+<h1>Sistema v2 — revisão depois do primeiro teste real</h1>
+<p>Depois de ver o Sistema e o Kanban funcionando de verdade, vieram 5 pedidos de ajuste que mudam a estrutura: o menu "Sistema" precisa estar mais visível, deve dar pra cadastrar workspace e ver o provedor de IA sem sair da tela, um workspace pode ter vários quadros (não só um), cada nível pode ter checklist, e — a mudança mais profunda — o quadro passa a ser compartilhado entre o navegador e o agente de IA, com uma etapa de validação humana antes de considerar algo "pronto".</p>
+
+<h2>O que muda para quem usa o produto</h2>
+<ul>
+  <li>"Sistema" aparece direto na barra lateral, logo abaixo de onde você escolhe o ambiente (local ou remoto).</li>
+  <li>Dá pra criar uma pasta de trabalho nova sem sair da tela de Sistema.</li>
+  <li>O perfil de IA padrão mostra de qual provedor ele vem (Claude Code, Codex, OpenHands, etc.).</li>
+  <li>Um workspace pode ter vários quadros — por módulo, por equipe, como fizer sentido.</li>
+  <li>Qualquer card pode ter uma checklist, além de anotações e anexos.</li>
+  <li>Quando a IA termina uma tarefa, ela não marca "concluído" direto — marca "aguardando validação". Só quando uma pessoa aprova é que vira "concluído" de verdade. Se reprovar, escreve o motivo e a tarefa volta pra IA continuar.</li>
+</ul>
+
+<h2>Linha do tempo — 5 sprints em 3 ondas</h2>
+<table>
+<tr><th>Sprint</th><th>Onda</th><th>Entrega</th></tr>
+<tr><td>SPRINT-01</td><td><span class="badge wave1">1</span></td><td>Sistema na barra lateral, criar workspace ali, perfil com provedor visível.</td></tr>
+<tr><td>SPRINT-02</td><td><span class="badge wave1">1</span></td><td>Múltiplos quadros por workspace, com migração automática dos dados existentes.</td></tr>
+<tr><td>SPRINT-03</td><td><span class="badge wave2">2</span></td><td>Checklist em qualquer nível.</td></tr>
+<tr><td>SPRINT-04</td><td><span class="badge wave2">2</span></td><td>O quadro passa a ser salvo também na pasta do projeto (não só no navegador).</td></tr>
+<tr><td>SPRINT-05</td><td><span class="badge wave3">3</span></td><td>Aprovar/reprovar o trabalho da IA, com motivo quando reprovado.</td></tr>
+</table>
+
+<h2>Riscos</h2>
+<div class="risk"><strong>Duas pessoas (ou a IA e uma pessoa) editando ao mesmo tempo.</strong> O sistema tenta mesclar as mudanças tarefa por tarefa em vez de sobrescrever tudo, mas se as duas mexerem exatamente na mesma tarefa ao mesmo tempo, a última edição vence. Aceito conscientemente — não é um sistema de tempo real.</div>
+<div class="risk"><strong>Só funciona localmente.</strong> Assim como a sinterização em Markdown, essa gravação compartilhada com a IA só funciona quando o Canvas roda localmente, não na versão hospedada em nuvem.</div>
+<div class="risk"><strong>Confiança na IA para seguir o contrato.</strong> A IA marca "aguardando validação" seguindo uma instrução de texto, não uma trava técnica — se ela não seguir a instrução, a tarefa simplesmente não muda de coluna sozinha (comportamento hoje, sem regressão).</div>
+
+<h2>O que fica de fora desta revisão</h2>
+<div class="out">Sincronização em tempo real entre abas/usuários, checklist com sub-itens ou responsáveis, e escrita compartilhada funcionando em backend na nuvem.</div>
+</body>
+</html>
