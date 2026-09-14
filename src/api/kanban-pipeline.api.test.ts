@@ -257,7 +257,7 @@ describe("buildFeatdevelopInitialMessage", () => {
   it("includes title and slug, and omits description/context when absent", () => {
     const task = buildTask({ description: undefined });
 
-    const message = buildFeatdevelopInitialMessage(task, "");
+    const message = buildFeatdevelopInitialMessage(task, "", "workspace-1");
 
     expect(message).toContain("Minha feature");
     expect(message).toContain("minha-feature");
@@ -268,7 +268,7 @@ describe("buildFeatdevelopInitialMessage", () => {
   it("includes the description when present", () => {
     const task = buildTask({ description: "Uma descrição qualquer" });
 
-    const message = buildFeatdevelopInitialMessage(task, "");
+    const message = buildFeatdevelopInitialMessage(task, "", "workspace-1");
 
     expect(message).toContain("Descrição: Uma descrição qualquer");
   });
@@ -276,9 +276,107 @@ describe("buildFeatdevelopInitialMessage", () => {
   it("includes the additional context when present", () => {
     const task = buildTask({ description: undefined });
 
-    const message = buildFeatdevelopInitialMessage(task, "algum contexto");
+    const message = buildFeatdevelopInitialMessage(
+      task,
+      "algum contexto",
+      "workspace-1",
+    );
 
     expect(message).toContain("Contexto adicional do usuário:\nalgum contexto");
+  });
+
+  it("CA-10: includes the rejection reason when task.rejectionReason is set", () => {
+    const task = buildTask({
+      description: undefined,
+      rejectionReason: "faltou tratar o caso de erro X",
+    });
+
+    const message = buildFeatdevelopInitialMessage(task, "", "workspace-1");
+
+    expect(message).toContain(
+      "Esta tarefa foi reprovada anteriormente pelo motivo: faltou tratar o caso de erro X",
+    );
+  });
+
+  it("CA-10: omits the rejection paragraph when rejectionReason is absent", () => {
+    const task = buildTask({
+      description: undefined,
+      rejectionReason: undefined,
+    });
+
+    const message = buildFeatdevelopInitialMessage(task, "", "workspace-1");
+
+    expect(message).not.toContain("reprovada anteriormente");
+  });
+
+  it("CA-10: includes the board.json contract when linkedConversationId is set (pipeline card)", () => {
+    const task = buildTask({
+      description: undefined,
+      linkedConversationId: "conversation-1",
+    });
+
+    const message = buildFeatdevelopInitialMessage(task, "", "workspace-1");
+
+    // Must match the real path readBoardFile/writeBoardFile use
+    // (src/api/kanban-board-file.api.ts's boardFilePath), not just contain
+    // the substring "board.json" — a prior version of this paragraph told
+    // the agent to write `docs/kanban/board.json`, a path the frontend
+    // never reads back, silently breaking the whole approve/reject flow.
+    expect(message).toContain(".openhands/kanban/workspace-1/board.json");
+    expect(message).toContain("pending_validation");
+    expect(message).toContain(task.id);
+    expect(message).toContain(task.boardId);
+  });
+
+  it("CA-10: omits the board.json contract when linkedConversationId is absent", () => {
+    const task = buildTask({
+      description: undefined,
+      linkedConversationId: undefined,
+    });
+
+    const message = buildFeatdevelopInitialMessage(task, "", "workspace-1");
+
+    expect(message).not.toContain("board.json");
+    expect(message).not.toContain("Contrato do arquivo");
+  });
+
+  it("CA-11: message never leaks other tasks' ids and its length is bounded by the triggered card's own fields, regardless of how many other tasks exist in the board (RNF-03)", () => {
+    // buildFeatdevelopInitialMessage's signature only accepts a single task
+    // (plus contextText/workspaceId) — it structurally cannot iterate a task
+    // list. To make that invariant a real regression guard (not just "call
+    // the same function twice and compare to itself"), this test builds a
+    // 50-task board scenario with distinctively-tagged other-task ids and
+    // asserts none of them leak into the message, and that the message
+    // length stays within a bound derived only from the triggered task's
+    // own field sizes — a regression that started summarizing the board (a
+    // realistic way RNF-03 could break) would fail both assertions.
+    const otherTasks: KanbanTask[] = Array.from({ length: 50 }, (_, i) =>
+      buildTask({ id: `other-task-marker-${i}` }),
+    );
+    expect(otherTasks.length).toBe(50);
+
+    const triggeredTask = buildTask({
+      id: "triggered-task",
+      description: "Descrição fixa",
+      rejectionReason: "motivo fixo",
+      linkedConversationId: "conversation-1",
+    });
+
+    const message = buildFeatdevelopInitialMessage(
+      triggeredTask,
+      "contexto fixo",
+      "workspace-1",
+    );
+
+    for (const other of otherTasks) {
+      expect(message).not.toContain(other.id);
+    }
+    // Bound: the message is a handful of fixed-text paragraphs plus the
+    // triggered task's own title/description/context/rejectionReason/id —
+    // comfortably under 2000 chars for these short fixture strings. A
+    // regression that appended even a compact one-line summary per other
+    // task (50 of them) would blow well past this.
+    expect(message.length).toBeLessThan(2000);
   });
 });
 
@@ -299,6 +397,7 @@ describe("startFeatdevelopConversation", () => {
     const result = await startFeatdevelopConversation(
       "/workspace",
       buildTask(),
+      "workspace-1",
     );
 
     expect(result).toEqual({ ok: true, conversationId: "conversation-id-456" });
@@ -312,6 +411,7 @@ describe("startFeatdevelopConversation", () => {
     const result = await startFeatdevelopConversation(
       "/workspace",
       buildTask(),
+      "workspace-1",
     );
 
     expect(result).toEqual({ ok: false, error: "sem backend disponível" });
@@ -333,6 +433,7 @@ describe("startFeatdevelopConversation", () => {
     const result = await startFeatdevelopConversation(
       "/workspace",
       buildTask(),
+      "workspace-1",
     );
 
     expect(result.ok).toBe(false);
@@ -366,10 +467,15 @@ describe("startFeatdevelopConversation", () => {
         updated_at: "",
       });
 
-    const first = await startFeatdevelopConversation("/workspace", buildTask());
+    const first = await startFeatdevelopConversation(
+      "/workspace",
+      buildTask(),
+      "workspace-1",
+    );
     const second = await startFeatdevelopConversation(
       "/workspace",
       buildTask(),
+      "workspace-1",
     );
 
     expect(createConversationMock).toHaveBeenCalledTimes(2);

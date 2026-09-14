@@ -186,6 +186,7 @@ export default function KanbanBoardRoute() {
       {openTask && (
         <KanbanTaskDrawer
           workspaceId={boardId}
+          trueWorkspaceId={workspaceId}
           task={openTask}
           onClose={() => setOpenTask(null)}
         />

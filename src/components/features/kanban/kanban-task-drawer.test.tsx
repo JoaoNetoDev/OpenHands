@@ -49,6 +49,7 @@ describe("KanbanTaskDrawer — featdevelop pipeline UI (SPRINT-03)", () => {
     renderWithProviders(
       <KanbanTaskDrawer
         workspaceId={WORKSPACE_ID}
+        trueWorkspaceId={WORKSPACE_ID}
         task={task}
         onClose={() => {}}
       />,
@@ -63,6 +64,7 @@ describe("KanbanTaskDrawer — featdevelop pipeline UI (SPRINT-03)", () => {
     renderWithProviders(
       <KanbanTaskDrawer
         workspaceId={WORKSPACE_ID}
+        trueWorkspaceId={WORKSPACE_ID}
         task={task}
         onClose={() => {}}
       />,
@@ -80,6 +82,7 @@ describe("KanbanTaskDrawer — featdevelop pipeline UI (SPRINT-03)", () => {
     renderWithProviders(
       <KanbanTaskDrawer
         workspaceId={WORKSPACE_ID}
+        trueWorkspaceId={WORKSPACE_ID}
         task={task}
         onClose={() => {}}
       />,
@@ -101,6 +104,7 @@ describe("KanbanTaskDrawer — featdevelop pipeline UI (SPRINT-03)", () => {
     renderWithProviders(
       <KanbanTaskDrawer
         workspaceId={WORKSPACE_ID}
+        trueWorkspaceId={WORKSPACE_ID}
         task={task}
         onClose={() => {}}
       />,

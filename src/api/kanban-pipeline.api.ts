@@ -17,11 +17,34 @@ import type { KanbanTask } from "#/types/kanban";
 export function buildFeatdevelopInitialMessage(
   task: KanbanTask,
   contextText: string,
+  workspaceId: string,
 ): string {
   return [
     `Use a skill /featdevelop para planejar a feature "${task.title}" com slug "${task.featureSlug}".`,
     task.description ? `Descrição: ${task.description}` : null,
     contextText ? `Contexto adicional do usuário:\n${contextText}` : null,
+    task.rejectionReason
+      ? `Esta tarefa foi reprovada anteriormente pelo motivo: ${task.rejectionReason}`
+      : null,
+    // Only cards launched from a pipeline conversation (i.e. that already
+    // have a `linkedConversationId`) need the board.json contract — a
+    // brand-new card being kicked off for the first time has nothing to
+    // report back yet (SPEC §2.7, CA-10). This paragraph is built purely
+    // from `task` itself, never from the board/workspace's full task list,
+    // so its size never grows with the number of tasks (RNF-03, CA-11).
+    task.linkedConversationId
+      ? [
+          "Contrato do arquivo board.json: ao concluir esta tarefa, edite",
+          `o arquivo \`.openhands/kanban/${workspaceId}/board.json\` (caminho`,
+          "relativo à raiz do workspace) e atualize o objeto desta tarefa",
+          "(procure pelo id abaixo) com o formato mínimo:",
+          '```json\n{ "id": "<id da tarefa>", "boardId": "<id do quadro>", "columnId": "pending_validation" }\n```',
+          `O id desta tarefa é "${task.id}" e o boardId é "${task.boardId}".`,
+          'Troque explicitamente o campo "columnId" para "pending_validation"',
+          "quando a tarefa estiver concluída, para que um humano possa",
+          "revisar o resultado.",
+        ].join("\n")
+      : null,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -45,13 +68,18 @@ export function buildFeatdevelopInitialMessage(
 export async function startFeatdevelopConversation(
   workspacePath: string,
   task: KanbanTask,
+  workspaceId: string,
 ): Promise<
   { ok: true; conversationId: string } | { ok: false; error: string }
 > {
   try {
     const contextText = htmlToSimpleMarkdown(task.userContextHtml ?? "");
     const result = await AgentServerConversationService.createConversation({
-      initialUserMsg: buildFeatdevelopInitialMessage(task, contextText),
+      initialUserMsg: buildFeatdevelopInitialMessage(
+        task,
+        contextText,
+        workspaceId,
+      ),
       workingDirOverride: workspacePath,
     });
     if (!result.app_conversation_id) {

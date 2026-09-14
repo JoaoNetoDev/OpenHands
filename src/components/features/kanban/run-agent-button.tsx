@@ -11,6 +11,10 @@ import { LoadingSpinner } from "#/components/shared/loading-spinner";
 
 interface RunAgentButtonProps {
   workspaceId: string;
+  /** Real workspace id (not `boardId`) — needed to build the agent's
+   * board.json contract path. See KanbanTaskDrawerProps for why this is a
+   * separate prop from `workspaceId`. */
+  trueWorkspaceId: string | undefined;
   workspacePath: string | undefined;
   task: KanbanTask;
 }
@@ -28,6 +32,7 @@ interface RunAgentButtonProps {
  */
 export function RunAgentButton({
   workspaceId,
+  trueWorkspaceId,
   workspacePath,
   task,
 }: RunAgentButtonProps) {
@@ -35,12 +40,16 @@ export function RunAgentButton({
   const updateTask = useKanbanBoardStore((state) => state.updateTask);
   const [isPending, setIsPending] = React.useState(false);
 
-  const isDisabled = !task.featureSlug || !workspacePath;
+  const isDisabled = !task.featureSlug || !workspacePath || !trueWorkspaceId;
 
   const handleClick = async () => {
-    if (!task.featureSlug || !workspacePath) return;
+    if (!task.featureSlug || !workspacePath || !trueWorkspaceId) return;
     setIsPending(true);
-    const result = await startFeatdevelopConversation(workspacePath, task);
+    const result = await startFeatdevelopConversation(
+      workspacePath,
+      task,
+      trueWorkspaceId,
+    );
     setIsPending(false);
     if (result.ok) {
       updateTask(workspaceId, task.id, {

@@ -7,7 +7,8 @@ export type KanbanColumnId =
   | "featdevelop_tech"
   | "featdevelop_spec"
   | "featdevelop_sprints"
-  | "featdevelop_done";
+  | "featdevelop_done"
+  | "pending_validation";
 
 export interface KanbanTaskAttachment {
   id: string;
@@ -55,4 +56,5 @@ export interface KanbanTask {
   featureSlug?: string; // presença = card usa o preset "featdevelop"
   linkedConversationId?: string;
   checklist?: KanbanChecklistItem[];
+  rejectionReason?: string;
 }

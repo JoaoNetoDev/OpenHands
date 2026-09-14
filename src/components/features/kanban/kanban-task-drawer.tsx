@@ -26,6 +26,7 @@ import { SinterizeButton } from "./sinterize-button";
 import { FeatureSlugInput } from "./feature-slug-input";
 import { RunAgentButton } from "./run-agent-button";
 import { FeatureDocsPanel } from "./feature-docs-panel";
+import { ApproveRejectButtons } from "./approve-reject-buttons";
 
 // Stable reference so the Zustand selector below doesn't return a fresh
 // array on every call when a task has no children yet — a fresh `[]`
@@ -35,6 +36,17 @@ const EMPTY_TASKS: KanbanTask[] = [];
 
 interface KanbanTaskDrawerProps {
   workspaceId: string;
+  /**
+   * The *real* workspace id (as opposed to `workspaceId` above, which — for
+   * historical reasons dating back to kanban-3-niveis — actually carries the
+   * `boardId` in this component tree). Needed only by `RunAgentButton` to
+   * build the correct `.openhands/kanban/<workspaceId>/board.json` path for
+   * the agent contract (TECH §2.6/§2.7); everything else in this drawer
+   * keys off `boardId`. Optional because it's only resolvable once a board
+   * has been matched to a workspace (kanban-board.tsx); undefined disables
+   * "Rodar com agente" the same way a missing `workspacePath` already does.
+   */
+  trueWorkspaceId: string | undefined;
   task: KanbanTask;
   onClose: () => void;
 }
@@ -49,6 +61,7 @@ interface KanbanTaskDrawerProps {
  */
 export function KanbanTaskDrawer({
   workspaceId,
+  trueWorkspaceId,
   task,
   onClose,
 }: KanbanTaskDrawerProps) {
@@ -153,6 +166,8 @@ export function KanbanTaskDrawer({
           />
         </label>
 
+        <ApproveRejectButtons workspaceId={workspaceId} task={task} />
+
         <CardContextPanel workspaceId={workspaceId} task={task} />
         <CardAttachments workspaceId={workspaceId} task={task} />
         <ChecklistPanel
@@ -171,6 +186,7 @@ export function KanbanTaskDrawer({
             <FeatureSlugInput workspaceId={workspaceId} task={task} />
             <RunAgentButton
               workspaceId={workspaceId}
+              trueWorkspaceId={trueWorkspaceId}
               workspacePath={workspacePath}
               task={task}
             />
@@ -256,6 +272,7 @@ export function KanbanTaskDrawer({
       {openChildTask && (
         <KanbanTaskDrawer
           workspaceId={workspaceId}
+          trueWorkspaceId={trueWorkspaceId}
           task={openChildTask}
           onClose={() => setOpenChildTask(null)}
         />

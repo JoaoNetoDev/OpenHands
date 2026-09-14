@@ -52,6 +52,7 @@ describe("RunAgentButton", () => {
     renderWithProviders(
       <RunAgentButton
         workspaceId={WORKSPACE_ID}
+        trueWorkspaceId={WORKSPACE_ID}
         workspacePath={WORKSPACE_PATH}
         task={task}
       />,
@@ -64,6 +65,7 @@ describe("RunAgentButton", () => {
     renderWithProviders(
       <RunAgentButton
         workspaceId={WORKSPACE_ID}
+        trueWorkspaceId={WORKSPACE_ID}
         workspacePath={undefined}
         task={task}
       />,
@@ -81,6 +83,7 @@ describe("RunAgentButton", () => {
     const { rerender } = renderWithProviders(
       <RunAgentButton
         workspaceId={WORKSPACE_ID}
+        trueWorkspaceId={WORKSPACE_ID}
         workspacePath={WORKSPACE_PATH}
         task={task}
       />,
@@ -97,6 +100,7 @@ describe("RunAgentButton", () => {
     rerender(
       <RunAgentButton
         workspaceId={WORKSPACE_ID}
+        trueWorkspaceId={WORKSPACE_ID}
         workspacePath={WORKSPACE_PATH}
         task={updatedTask}
       />,
@@ -116,6 +120,7 @@ describe("RunAgentButton", () => {
     renderWithProviders(
       <RunAgentButton
         workspaceId={WORKSPACE_ID}
+        trueWorkspaceId={WORKSPACE_ID}
         workspacePath={WORKSPACE_PATH}
         task={task}
       />,
@@ -134,6 +139,7 @@ describe("RunAgentButton", () => {
     renderWithProviders(
       <RunAgentButton
         workspaceId={WORKSPACE_ID}
+        trueWorkspaceId={WORKSPACE_ID}
         workspacePath={WORKSPACE_PATH}
         task={task}
       />,

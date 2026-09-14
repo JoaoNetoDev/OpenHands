@@ -158,6 +158,7 @@ interface KanbanBoardActions {
         | "linkedConversationId"
         | "columnId"
         | "checklist"
+        | "rejectionReason"
       >
     >,
   ) => boolean;
