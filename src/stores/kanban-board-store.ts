@@ -37,6 +37,9 @@ interface KanbanBoardActions {
         | "agentContextHtml"
         | "attachments"
         | "lastSinteredAt"
+        | "featureSlug"
+        | "linkedConversationId"
+        | "columnId"
       >
     >,
   ) => boolean;

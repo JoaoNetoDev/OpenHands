@@ -22,6 +22,9 @@ import { DeleteTaskConfirmDialog } from "./delete-task-confirm-dialog";
 import { CardContextPanel } from "./card-context-panel";
 import { CardAttachments } from "./card-attachments";
 import { SinterizeButton } from "./sinterize-button";
+import { FeatureSlugInput } from "./feature-slug-input";
+import { RunAgentButton } from "./run-agent-button";
+import { FeatureDocsPanel } from "./feature-docs-panel";
 
 // Stable reference so the Zustand selector below doesn't return a fresh
 // array on every call when a task has no children yet — a fresh `[]`
@@ -151,6 +154,27 @@ export function KanbanTaskDrawer({
 
         <CardContextPanel workspaceId={workspaceId} task={task} />
         <CardAttachments workspaceId={workspaceId} task={task} />
+
+        {/* The featdevelop pipeline UI is exclusive to level-1 cards
+         * (SPEC §4) — sub-tasks (level 2/3) never carry a `featureSlug` and
+         * never show the slug field, the "run agent" action, or the docs
+         * panel. */}
+        {task.level === 1 && (
+          <>
+            <FeatureSlugInput workspaceId={workspaceId} task={task} />
+            <RunAgentButton
+              workspaceId={workspaceId}
+              workspacePath={workspacePath}
+              task={task}
+            />
+            {task.featureSlug && workspacePath && (
+              <FeatureDocsPanel
+                workspacePath={workspacePath}
+                slug={task.featureSlug}
+              />
+            )}
+          </>
+        )}
 
         <div className="flex items-center justify-between gap-2">
           <SinterizeButton
