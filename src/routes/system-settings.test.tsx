@@ -10,7 +10,8 @@ import {
 } from "#/utils/system-settings-storage";
 
 const useLocalWorkspacesMock = vi.fn();
-const useLlmProfilesMock = vi.fn();
+const useAgentProfilesMock = vi.fn();
+const getProfileMock = vi.fn();
 const displayErrorToastMock = vi.fn();
 const displaySuccessToastMock = vi.fn();
 
@@ -18,8 +19,45 @@ vi.mock("#/hooks/query/use-local-workspaces", () => ({
   useLocalWorkspaces: () => useLocalWorkspacesMock(),
 }));
 
-vi.mock("#/hooks/query/use-llm-profiles", () => ({
-  useLlmProfiles: () => useLlmProfilesMock(),
+vi.mock("#/hooks/query/use-agent-profiles", () => ({
+  useAgentProfiles: () => useAgentProfilesMock(),
+}));
+
+vi.mock("#/api/agent-profiles-service/agent-profiles-service.api", () => ({
+  default: {
+    getProfile: (...args: unknown[]) => getProfileMock(...args),
+  },
+}));
+
+vi.mock("#/constants/acp-providers", () => ({
+  getAcpProviderDisplayName: (key: string | null | undefined) =>
+    key ? `Provider(${key})` : null,
+}));
+
+// The dialog itself (and its WorkspaceSelectionForm internals) is covered by
+// its own tests; here it's stubbed to a single confirm button so CA-02 can
+// exercise the System screen's wiring (open on "__create__", persist +
+// auto-select on confirm) without pulling in unrelated provider/git plumbing.
+vi.mock("#/components/features/home/open-workspace-dialog", () => ({
+  OpenWorkspaceDialog: ({
+    isOpen,
+    onConfirm,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: (workspace: { id: string; name: string; path: string }) => void;
+  }) => {
+    if (!isOpen) return null;
+    return (
+      <button
+        type="button"
+        data-testid="open-workspace-dialog-confirm"
+        onClick={() =>
+          onConfirm({ id: "ws-new", name: "New Workspace", path: "/new" })
+        }
+      />
+    );
+  },
 }));
 
 vi.mock("#/utils/custom-toast-handlers", () => ({
@@ -32,9 +70,9 @@ const WORKSPACES = [
   { id: "ws-2", name: "Workspace Two", path: "/ws2" },
 ];
 
-const PROFILES = [
-  { name: "profile-a", model: "gpt-4o" },
-  { name: "profile-b", model: "claude" },
+const AGENT_PROFILES = [
+  { id: "profile-a-id", name: "profile-a", agent_kind: "openhands" as const },
+  { id: "profile-b-id", name: "profile-b", agent_kind: "acp" as const },
 ];
 
 function setLocalWorkspaces(
@@ -47,11 +85,11 @@ function setLocalWorkspaces(
   });
 }
 
-function setLlmProfiles(
+function setAgentProfiles(
   overrides: Partial<{ data: unknown; isLoading: boolean }> = {},
 ) {
-  useLlmProfilesMock.mockReturnValue({
-    data: { profiles: PROFILES },
+  useAgentProfilesMock.mockReturnValue({
+    data: { profiles: AGENT_PROFILES, active_agent_profile_id: null },
     isLoading: false,
     ...overrides,
   });
@@ -62,7 +100,16 @@ describe("SystemSettingsScreen", () => {
     window.localStorage.clear();
     vi.clearAllMocks();
     setLocalWorkspaces();
-    setLlmProfiles();
+    setAgentProfiles();
+    getProfileMock.mockResolvedValue({
+      name: "profile-b",
+      profile: {
+        id: "profile-b-id",
+        name: "profile-b",
+        agent_kind: "acp",
+        acp_server: "claude-code",
+      },
+    });
   });
 
   afterEach(() => {
@@ -107,15 +154,29 @@ describe("SystemSettingsScreen", () => {
     expect(reselected).toHaveDisplayValue("Workspace Two");
   });
 
-  it("CA-03: selecting an LLM profile and saving persists defaultLlmProfileName, reselected after reload", async () => {
+  it("CA-02b: creating a workspace from the dropdown persists and auto-selects it without route navigation", async () => {
     const user = userEvent.setup();
-    const { unmount } = renderWithProviders(<SystemSettingsScreen />);
+    renderWithProviders(<SystemSettingsScreen />);
 
-    const profileInput = screen.getByRole("combobox", {
-      name: /SYSTEM_SETTINGS\$DEFAULT_LLM_PROFILE_LABEL/,
+    const workspaceInput = screen.getByRole("combobox", {
+      name: /SYSTEM_SETTINGS\$DEFAULT_WORKSPACE_LABEL/,
     });
-    await user.click(profileInput);
-    await user.click(await screen.findByText("profile-b"));
+    await user.click(workspaceInput);
+    await user.click(
+      await screen.findByText("SYSTEM_SETTINGS$CREATE_WORKSPACE"),
+    );
+
+    const confirmButton = await screen.findByTestId(
+      "open-workspace-dialog-confirm",
+    );
+    await user.click(confirmButton);
+
+    // Dialog closes and the newly created workspace is selected in place —
+    // no navigation away from /settings/system.
+    expect(
+      screen.queryByTestId("open-workspace-dialog-confirm"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("system-settings-screen")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("submit-button"));
 
@@ -126,15 +187,59 @@ describe("SystemSettingsScreen", () => {
     const stored = JSON.parse(
       window.localStorage.getItem(SYSTEM_SETTINGS_STORAGE_KEY) as string,
     ) as SystemSettings;
-    expect(stored.defaultLlmProfileName).toBe("profile-b");
+    expect(stored.defaultWorkspaceId).toBe("ws-new");
+  });
 
-    unmount();
+  it("CA-03: the profile dropdown shows agent_kind per item and saving persists the profile id", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderWithProviders(<SystemSettingsScreen />);
 
-    renderWithProviders(<SystemSettingsScreen />);
-    const reselected = screen.getByRole("combobox", {
+    const profileInput = screen.getByRole("combobox", {
       name: /SYSTEM_SETTINGS\$DEFAULT_LLM_PROFILE_LABEL/,
     });
-    expect(reselected).toHaveDisplayValue("profile-b");
+    await user.click(profileInput);
+    expect(
+      await screen.findByText(/profile-a — OpenHands/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/profile-b — SYSTEM_SETTINGS\$PROVIDER_ACP/),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByText(/profile-a — OpenHands/));
+    await user.click(screen.getByTestId("submit-button"));
+
+    await waitFor(() => {
+      expect(displaySuccessToastMock).toHaveBeenCalled();
+    });
+
+    const stored = JSON.parse(
+      window.localStorage.getItem(SYSTEM_SETTINGS_STORAGE_KEY) as string,
+    ) as SystemSettings;
+    expect(stored.defaultLlmProfileName).toBe("profile-a-id");
+
+    unmount();
+  });
+
+  it("CA-03b: selecting an ACP profile fetches its detail once and shows the specific provider", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SystemSettingsScreen />);
+
+    const profileInput = screen.getByRole("combobox", {
+      name: /SYSTEM_SETTINGS\$DEFAULT_LLM_PROFILE_LABEL/,
+    });
+    await user.click(profileInput);
+    await user.click(
+      await screen.findByText(/profile-b — SYSTEM_SETTINGS\$PROVIDER_ACP/),
+    );
+
+    await waitFor(() => {
+      expect(getProfileMock).toHaveBeenCalledWith("profile-b");
+    });
+    expect(getProfileMock).toHaveBeenCalledTimes(1);
+
+    expect(
+      await screen.findByTestId("default-agent-profile-provider"),
+    ).toHaveTextContent("SYSTEM_SETTINGS$PROVIDER_DETAIL");
   });
 
   it("CA-06: shows a link instead of an empty list when there are no workspaces", () => {
@@ -152,8 +257,8 @@ describe("SystemSettingsScreen", () => {
     expect(link).toHaveAttribute("href", "/");
   });
 
-  it("CA-06b: shows a link to /settings/llm when there are no LLM profiles", () => {
-    setLlmProfiles({ data: { profiles: [] } });
+  it("CA-06b: shows a link to /settings/agents when there are no agent profiles", () => {
+    setAgentProfiles({ data: { profiles: [], active_agent_profile_id: null } });
     renderWithProviders(<SystemSettingsScreen />);
 
     expect(
@@ -164,7 +269,7 @@ describe("SystemSettingsScreen", () => {
     const link = screen.getByRole("link", {
       name: /SYSTEM_SETTINGS\$DEFAULT_LLM_PROFILE_EMPTY_LINK/,
     });
-    expect(link).toHaveAttribute("href", "/settings/llm");
+    expect(link).toHaveAttribute("href", "/settings/agents");
   });
 
   it("CA-07: a workspace saved as default but later removed reconciles to unselected", () => {
@@ -242,8 +347,8 @@ describe("SystemSettingsScreen", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("CA-10b: renders the skeleton while LLM profiles are loading", () => {
-    setLlmProfiles({ data: undefined, isLoading: true });
+  it("CA-10b: renders the skeleton while agent profiles are loading", () => {
+    setAgentProfiles({ data: undefined, isLoading: true });
     renderWithProviders(<SystemSettingsScreen />);
 
     expect(screen.getByTestId("system-settings-skeleton")).toBeInTheDocument();

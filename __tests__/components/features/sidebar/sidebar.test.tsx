@@ -322,6 +322,25 @@ describe("Sidebar", () => {
     );
   });
 
+  it("shows the Sistema link below the backend selector when expanded", () => {
+    renderSidebar("/conversations");
+
+    const backendSelector = screen.getByTestId("backend-selector");
+    const systemLink = screen.getByTestId("sidebar-system-link");
+    expect(backendSelector.compareDocumentPosition(systemLink)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("shows a collapsed Sistema icon when the sidebar is collapsed", () => {
+    useSidebarStore.setState({ collapsed: true });
+    renderSidebar("/conversations");
+
+    expect(
+      screen.getByTestId("sidebar-collapsed-system-link"),
+    ).toBeInTheDocument();
+  });
+
   it("hides the version tile when the sidebar is collapsed", () => {
     useSidebarStore.setState({ collapsed: true });
     renderSidebar("/conversations");
