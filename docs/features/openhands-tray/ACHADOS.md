@@ -6,7 +6,7 @@
 
 ---
 
-## Resumo em 4 linhas
+## Resumo
 
 | # | Achado | Gravidade | Status |
 |---|---|---|---|
@@ -14,6 +14,7 @@
 | 2 | Chave de sessão em texto puro num arquivo solto | 🟡 médio | arquivo ainda no disco; chave obsoleta |
 | 3 | Lint falha em 14 erros (código novo de agent-profiles) | 🟡 médio | aberto |
 | 4 | 92 testes falhando | 🟢 baixo | pré-existente, não é regressão |
+| 5 | **Binário não tem UI — duplo clique nunca funciona** | 🟠 alto p/ usuário | escopo v1.0 (seção 9) |
 
 ---
 
@@ -302,7 +303,77 @@ Coisas que não são óbvias e custam tempo para redescobrir.
 
 ---
 
-## 8. Contexto histórico — por que existe só um prefixo de rota
+## 9. 🟠 O binário não é utilizável por quem não é técnico
+
+**Relato:** duplo clique não faz nada; pelo terminal, pede configuração.
+
+**Não é bug — é escopo.** A UI nunca foi construída. O próprio README diz
+*"The system-tray UI (Wails3) is not wired up yet"*, e o PRD faseia assim:
+
+| Fase | Escopo |
+|---|---|
+| **MVP (Sprint 02-04)** — *onde estamos* | **Sem UI**, sem auto-start. Só CLI com flags |
+| **v1.0 (Sprint 05-07)** | UI Wails3: ícone na bandeja + janela de Settings |
+| v1.5 | Streaming de eventos por WS |
+| v2 | Multi-agent, métricas |
+
+### Por que o duplo clique não faz nada
+
+1. **Não existe código de GUI.** `go.mod` tem só 2 dependências
+   (`gorilla/websocket`, `lumberjack`) — zero Wails. Não há janela para abrir.
+2. **O `.exe` é de console**, não de GUI:
+   ```
+   PE32+ executable (console) x86-64
+   ```
+   O Makefile não passa `-H=windowsgui`. No Windows, duplo clique abre um
+   console que **fecha na hora** (o programa sai com erro 1) — parece que
+   "nada aconteceu".
+3. **O `.exe` não é assinado.** O SmartScreen pode bloquear silenciosamente.
+
+### Por que o terminal pede configuração
+
+`-vps` e `-token` são obrigatórios:
+
+```
+openhands-tray: config: vps_url is required
+                (pass -vps and -token, or run once to save a config)
+```
+
+**Bug real na mensagem:** ela sugere *"run once to save a config"*, mas
+**não existe forma de salvar config**. `Config.Save()` existe em
+`internal/config/config.go:83`, mas **ninguém chama**. Não há flag `--save`
+nem modo interativo. A mensagem promete algo impossível.
+
+**Segundo muro:** `-launcher` também é obrigatório (a menos que se use
+`-no-sidecar`). Mesmo com `-vps` e `-token` corretos, o usuário trava de novo.
+
+### Terceiro problema: a VPS não está com o túnel ligado
+
+O ingress de produção roda **sem** `--agent-tunnel-token`:
+
+```
+/agent-tunnel -> 404
+```
+
+Ou seja: mesmo com um tray perfeito e todos os flags certos, **não conecta**.
+O túnel existe no código (`scripts/agent-tunnel.mjs`, commitado) mas não está
+habilitado em produção.
+
+### Resumo dos bloqueios
+
+| # | Bloqueio | Onde se resolve |
+|---|---|---|
+| 1 | Sem UI (duplo clique nunca vai funcionar) | Sprint 05-07 (Wails3) |
+| 2 | Sem caminho para salvar config | ~1 h de trabalho |
+| 3 | `-launcher` obrigatório | default sensato |
+| 4 | Túnel desligado na VPS | flag na unit systemd |
+
+**Os itens 2-4 são pequenos e desbloqueiam teste real já.** O item 1 é a
+feature de v1.0.
+
+---
+
+## 10. Contexto histórico — por que existe só um prefixo de rota
 
 Registro para quem for mexer depois. O bug foi encontrado **só** contra o agent-server real:
 
