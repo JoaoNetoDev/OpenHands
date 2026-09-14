@@ -4,12 +4,14 @@ import { collectDescendantIds, reindexAfterMove } from "#/utils/kanban-tree";
 
 function makeTask(overrides: Partial<KanbanTask> & { id: string }): KanbanTask {
   return {
+    boardId: "board-1",
     parentId: null,
     level: 1,
     title: `Task ${overrides.id}`,
     columnId: "todo",
     order: 0,
     createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: new Date().toISOString(),
     ...overrides,
   };
 }

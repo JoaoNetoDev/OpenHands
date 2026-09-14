@@ -12,12 +12,14 @@ const WORKSPACE_ID = "workspace-1";
 function makeTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
   return {
     id: "task-1",
+    boardId: "board-1",
     parentId: null,
     level: 1,
     title: "Task",
     columnId: "todo",
     order: 0,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -25,7 +27,7 @@ function makeTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
 describe("DeleteTaskConfirmDialog", () => {
   beforeEach(() => {
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: {},
+      tasksByBoardId: {},
       lastPersistFailed: false,
     });
   });
@@ -41,7 +43,7 @@ describe("DeleteTaskConfirmDialog", () => {
     });
 
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: {
+      tasksByBoardId: {
         [WORKSPACE_ID]: [root, child1, child2, grandchild],
       },
       lastPersistFailed: false,
@@ -67,7 +69,7 @@ describe("DeleteTaskConfirmDialog", () => {
   it("does not show the cascade message when the task has no descendants", () => {
     const root = makeTask({ id: "root" });
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: { [WORKSPACE_ID]: [root] },
+      tasksByBoardId: { [WORKSPACE_ID]: [root] },
       lastPersistFailed: false,
     });
 
@@ -88,7 +90,7 @@ describe("DeleteTaskConfirmDialog", () => {
     const child1 = makeTask({ id: "child-1", parentId: "root", level: 2 });
 
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: { [WORKSPACE_ID]: [root, child1] },
+      tasksByBoardId: { [WORKSPACE_ID]: [root, child1] },
       lastPersistFailed: false,
     });
 
@@ -104,7 +106,7 @@ describe("DeleteTaskConfirmDialog", () => {
     await user.click(screen.getByTestId("confirm-delete-button"));
 
     expect(
-      useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID],
+      useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID],
     ).toHaveLength(0);
     expect(onClose).toHaveBeenCalled();
   });

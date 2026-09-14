@@ -11,12 +11,14 @@ const WORKSPACE_ID = "workspace-1";
 function makeTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
   return {
     id: "task-1",
+    boardId: "board-1",
     parentId: null,
     level: 1,
     title: "Task 1",
     columnId: "todo",
     order: 0,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -24,7 +26,7 @@ function makeTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
 describe("FeatureSlugInput", () => {
   beforeEach(() => {
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: {
+      tasksByBoardId: {
         [WORKSPACE_ID]: [makeTask()],
       },
       lastPersistFailed: false,
@@ -42,8 +44,7 @@ describe("FeatureSlugInput", () => {
     await user.type(input, "Not Valid_Slug");
     await user.tab();
 
-    const tasks =
-      useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID];
+    const tasks = useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID];
     expect(tasks[0].featureSlug).toBeUndefined();
     expect(input).toBeInvalid();
   });
@@ -59,8 +60,7 @@ describe("FeatureSlugInput", () => {
     await user.type(input, "my-feature");
     await user.tab();
 
-    const tasks =
-      useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID];
+    const tasks = useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID];
     expect(tasks[0].featureSlug).toBe("my-feature");
   });
 
@@ -75,8 +75,7 @@ describe("FeatureSlugInput", () => {
     await user.type(input, "my-feature");
     await user.tab();
 
-    const tasks =
-      useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID];
+    const tasks = useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID];
     expect(tasks[0].columnId).toBe("featdevelop_todo");
   });
 
@@ -84,7 +83,7 @@ describe("FeatureSlugInput", () => {
     const user = userEvent.setup();
     const task = makeTask({ columnId: "in_progress" });
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: { [WORKSPACE_ID]: [task] },
+      tasksByBoardId: { [WORKSPACE_ID]: [task] },
       lastPersistFailed: false,
     });
     renderWithProviders(
@@ -95,8 +94,7 @@ describe("FeatureSlugInput", () => {
     await user.type(input, "my-feature");
     await user.tab();
 
-    const tasks =
-      useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID];
+    const tasks = useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID];
     expect(tasks[0].columnId).toBe("in_progress");
     expect(tasks[0].featureSlug).toBe("my-feature");
   });

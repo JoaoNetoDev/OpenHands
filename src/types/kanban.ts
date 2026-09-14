@@ -16,8 +16,21 @@ export interface KanbanTaskAttachment {
   contentBase64: string; // conteúdo bruto do arquivo, guardado até a sinterização
 }
 
+/**
+ * A board groups tasks within a workspace (SPEC §2.4). Multiple boards can
+ * exist per `workspaceId`; tasks are partitioned by `boardId`, not
+ * `workspaceId`, directly.
+ */
+export interface KanbanBoard {
+  id: string;
+  workspaceId: string;
+  name: string;
+  createdAt: string; // ISO
+}
+
 export interface KanbanTask {
   id: string;
+  boardId: string; // substitui a antiga partição por workspaceId
   parentId: string | null; // null = nível 1
   level: 1 | 2 | 3;
   title: string;
@@ -25,6 +38,7 @@ export interface KanbanTask {
   columnId: KanbanColumnId;
   order: number; // posição dentro da coluna, entre irmãos de mesmo parentId
   createdAt: string; // ISO
+  updatedAt: string; // ISO
   userContextHtml?: string;
   agentContextHtml?: string;
   attachments?: KanbanTaskAttachment[];

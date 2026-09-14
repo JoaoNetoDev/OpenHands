@@ -43,12 +43,14 @@ beforeEach(() => {
 function buildTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
   return {
     id: "task-1",
+    boardId: "board-1",
     parentId: null,
     level: 1,
     title: "Minha feature",
     columnId: "featdevelop_todo",
     order: 0,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     featureSlug: "minha-feature",
     ...overrides,
   };

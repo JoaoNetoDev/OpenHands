@@ -24,12 +24,14 @@ vi.mock("#/api/kanban-pipeline.api", () => ({
 function makeTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
   return {
     id: "task-1",
+    boardId: "board-1",
     parentId: null,
     level: 1,
     title: "Task 1",
     columnId: "todo",
     order: 0,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -37,7 +39,7 @@ function makeTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
 describe("KanbanTaskDrawer — featdevelop pipeline UI (SPRINT-03)", () => {
   beforeEach(() => {
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: { [WORKSPACE_ID]: [] },
+      tasksByBoardId: { [WORKSPACE_ID]: [] },
       lastPersistFailed: false,
     });
   });

@@ -32,7 +32,7 @@ export function DeleteTaskConfirmDialog({
 }: DeleteTaskConfirmDialogProps) {
   const { t } = useTranslation("openhands");
   const tasks = useKanbanBoardStore(
-    (state) => state.tasksByWorkspaceId[workspaceId] ?? EMPTY_TASKS,
+    (state) => state.tasksByBoardId[workspaceId] ?? EMPTY_TASKS,
   );
   const deleteTask = useKanbanBoardStore((state) => state.deleteTask);
   const descendantCount = collectDescendantIds(tasks, taskId).size;

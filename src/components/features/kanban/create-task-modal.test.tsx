@@ -10,7 +10,7 @@ const WORKSPACE_ID = "workspace-1";
 describe("CreateTaskModal", () => {
   beforeEach(() => {
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: {},
+      tasksByBoardId: {},
       lastPersistFailed: false,
     });
   });
@@ -44,8 +44,7 @@ describe("CreateTaskModal", () => {
     await user.type(screen.getByTestId("kanban-task-title-input"), "New task");
     await user.click(screen.getByTestId("create-task-submit"));
 
-    const tasks =
-      useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID];
+    const tasks = useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID];
     expect(tasks).toHaveLength(1);
     expect(tasks[0].title).toBe("New task");
     expect(tasks[0].level).toBe(1);
