@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import type { KanbanColumnId, KanbanTask } from "#/types/kanban";
 import { useKanbanBoardStore } from "#/stores/kanban-board-store";
+import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { KanbanColumn } from "./kanban-column";
@@ -19,6 +20,7 @@ import { CreateTaskModal } from "./create-task-modal";
 import { DeleteTaskConfirmDialog } from "./delete-task-confirm-dialog";
 import { CardContextPanel } from "./card-context-panel";
 import { CardAttachments } from "./card-attachments";
+import { SinterizeButton } from "./sinterize-button";
 
 const COLUMNS: KanbanColumnId[] = ["todo", "in_progress", "done"];
 
@@ -53,6 +55,10 @@ export function KanbanTaskDrawer({
   ).filter((c) => c.parentId === task.id);
   const updateTask = useKanbanBoardStore((state) => state.updateTask);
   const moveTask = useKanbanBoardStore((state) => state.moveTask);
+  const { data: workspacesData } = useLocalWorkspaces();
+  const workspacePath = workspacesData?.workspaces.find(
+    (w) => w.id === workspaceId,
+  )?.path;
 
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
@@ -147,7 +153,12 @@ export function KanbanTaskDrawer({
         <CardContextPanel workspaceId={workspaceId} task={task} />
         <CardAttachments workspaceId={workspaceId} task={task} />
 
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-2">
+          <SinterizeButton
+            workspaceId={workspaceId}
+            workspacePath={workspacePath}
+            task={task}
+          />
           <BrandButton
             testId="kanban-drawer-delete-task"
             type="button"
