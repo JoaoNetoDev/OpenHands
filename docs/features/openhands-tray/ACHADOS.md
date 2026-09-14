@@ -303,73 +303,71 @@ Coisas que não são óbvias e custam tempo para redescobrir.
 
 ---
 
-## 9. 🟠 O binário não é utilizável por quem não é técnico
+## 9. 🟢 O binário não abria janela — RESOLVIDO no Sprint 03
 
-**Relato:** duplo clique não faz nada; pelo terminal, pede configuração.
+**Relato original:** duplo clique não faz nada; pelo terminal, pede configuração.
 
-**Não é bug — é escopo.** A UI nunca foi construída. O próprio README diz
-*"The system-tray UI (Wails3) is not wired up yet"*, e o PRD faseia assim:
+**Não era bug — era escopo.** A UI nunca tinha sido construída. Registro do que
+foi feito, porque três dos quatro bloqueios eram pequenos.
 
-| Fase | Escopo |
+### O que foi entregue (Sprint 03)
+
+| Antes | Agora |
 |---|---|
-| **MVP (Sprint 02-04)** — *onde estamos* | **Sem UI**, sem auto-start. Só CLI com flags |
-| **v1.0 (Sprint 05-07)** | UI Wails3: ícone na bandeja + janela de Settings |
-| v1.5 | Streaming de eventos por WS |
-| v2 | Multi-agent, métricas |
+| Duplo clique não abria nada | Abre a **janela de configuração** direto |
+| Sem ícone na bandeja | Ícone + menu (Mostrar / Iniciar / Parar / Sair) |
+| Sem forma de salvar config | Botão **Salvar**; grava no config do usuário |
+| `-vps`/`-token` obrigatórios sempre | Sem flags já inicia o bridge inteiro |
+| CLI quebrado para scripts | Qualquer flag de conexão volta ao modo CLI |
 
-### Por que o duplo clique não faz nada
+![Janela de configuração](ui-settings-window.png)
 
-1. **Não existe código de GUI.** `go.mod` tem só 2 dependências
-   (`gorilla/websocket`, `lumberjack`) — zero Wails. Não há janela para abrir.
-2. **O `.exe` é de console**, não de GUI:
-   ```
-   PE32+ executable (console) x86-64
-   ```
-   O Makefile não passa `-H=windowsgui`. No Windows, duplo clique abre um
-   console que **fecha na hora** (o programa sai com erro 1) — parece que
-   "nada aconteceu".
-3. **O `.exe` não é assinado.** O SmartScreen pode bloquear silenciosamente.
+### Os quatro bloqueios, um por um
 
-### Por que o terminal pede configuração
-
-`-vps` e `-token` são obrigatórios:
-
-```
-openhands-tray: config: vps_url is required
-                (pass -vps and -token, or run once to save a config)
-```
-
-**Bug real na mensagem:** ela sugere *"run once to save a config"*, mas
-**não existe forma de salvar config**. `Config.Save()` existe em
-`internal/config/config.go:83`, mas **ninguém chama**. Não há flag `--save`
-nem modo interativo. A mensagem promete algo impossível.
-
-**Segundo muro:** `-launcher` também é obrigatório (a menos que se use
-`-no-sidecar`). Mesmo com `-vps` e `-token` corretos, o usuário trava de novo.
-
-### Terceiro problema: a VPS não está com o túnel ligado
-
-O ingress de produção roda **sem** `--agent-tunnel-token`:
-
-```
-/agent-tunnel -> 404
-```
-
-Ou seja: mesmo com um tray perfeito e todos os flags certos, **não conecta**.
-O túnel existe no código (`scripts/agent-tunnel.mjs`, commitado) mas não está
-habilitado em produção.
-
-### Resumo dos bloqueios
-
-| # | Bloqueio | Onde se resolve |
+| # | Bloqueio | Situação |
 |---|---|---|
-| 1 | Sem UI (duplo clique nunca vai funcionar) | Sprint 05-07 (Wails3) |
-| 2 | Sem caminho para salvar config | ~1 h de trabalho |
-| 3 | `-launcher` obrigatório | default sensato |
-| 4 | Túnel desligado na VPS | flag na unit systemd |
+| 1 | Sem UI | ✅ **Feito** (Wails v3, GTK4 + WebKitGTK 6.0) |
+| 2 | Sem caminho para salvar config | ✅ **Feito** (a própria janela) |
+| 3 | `-launcher` obrigatório | ✅ **Feito** (campo na janela + default) |
+| 4 | Túnel desligado na VPS | ⏳ **Pendente** — flag na unit systemd |
 
-**Os itens 2-4 são pequenos e desbloqueiam teste real já.** O item 1 é a
-feature de v1.0.
+### Detalhes que custaram tempo
+
+- **O framework foi Wails v3.0.0-beta.21, não v2.** O argumento a favor do v2
+  era "exige menos do toolchain Go", mas o v2 também exige Go ≥ 1.25. O
+  argumento era inválido; foi v3.
+- **A GUI não pode ser cross-compilada.** Ela linka GTK/WebKit via cgo. Por isso
+  o repositório agora tem **duas builds**: `make build` (GUI, no host, com cgo) e
+  `make build-headless` (CLI, estática, 5 plataformas). O `CGO_ENABLED=0` do
+  Makefile antigo teria quebrado a GUI.
+- **A janela não cabia.** Primeira versão: 560×660. O conteúdo tem ~780 px, então
+  o rodapé (Salvar/Iniciar) ficava **abaixo da dobra**. Verificado por screenshot
+  em X virtual: só 100 px de cor de destaque = apenas o checkbox visível. Corrigido
+  para 580×800 + espaçamento mais apertado → 3350 px (botões visíveis).
+- **Mensagem que prometia o impossível** (o bug real do relato): o erro dizia
+  *"run once to save a config"*, mas não havia como salvar. Agora diz *"run
+  openhands-tray with no arguments to open the settings window"*, que é verdade.
+
+### Ícone na bandeja do XFCE — precisa de plugin
+
+O ícone usa StatusNotifierItem (D-Bus). O painel do XFCE **não** implementa isso
+por padrão, então o ícone não aparece até instalar o plugin:
+
+```bash
+sudo apt install xfce4-statusnotifier-plugin
+```
+
+Depois: clique direito no painel → **Panel** → **Add New Items…** → **Status
+Notifier Plugin**. Sem o plugin o app roda igual e a janela abre; o sintoma é a
+linha `systray error: ... StatusNotifierWatcher was not provided` no log.
+
+### Verificação
+
+- `go build`, `go vet` (nas duas builds) e `go test ./...` — verdes.
+- `make release` — 5 binários cross-compilados.
+- App rodou sob Xvfb e serviu a UI (`/`, `/style.css`, `/main.js`); screenshot
+  analisado pixel a pixel. **Zero** pixels da cor de erro = os bindings JS→Go
+  responderam.
 
 ---
 
