@@ -1,4 +1,13 @@
-export type KanbanColumnId = "todo" | "in_progress" | "done";
+export type KanbanColumnId =
+  | "todo"
+  | "in_progress"
+  | "done"
+  | "featdevelop_todo"
+  | "featdevelop_prd"
+  | "featdevelop_tech"
+  | "featdevelop_spec"
+  | "featdevelop_sprints"
+  | "featdevelop_done";
 
 export interface KanbanTaskAttachment {
   id: string;
@@ -20,4 +29,6 @@ export interface KanbanTask {
   agentContextHtml?: string;
   attachments?: KanbanTaskAttachment[];
   lastSinteredAt?: string; // ISO — presença = indicador visual de sinterização
+  featureSlug?: string; // presença = card usa o preset "featdevelop"
+  linkedConversationId?: string;
 }
