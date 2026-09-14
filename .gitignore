@@ -3,6 +3,7 @@ public/locales/**/*
 src/i18n/declaration.ts
 .env
 .envrc
+.tmp-*
 node_modules/
 build/
 logs/

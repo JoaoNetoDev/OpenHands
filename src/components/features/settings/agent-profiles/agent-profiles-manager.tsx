@@ -62,7 +62,7 @@ export function AgentProfilesManager({
                 variant="tertiary"
                 onClick={() => setIsImportOpen(true)}
               >
-                Importar do central
+                {t(I18nKey.SETTINGS$IMPORT_FROM_CENTRAL)}
               </BrandButton>
               {onAddProfile ? (
                 <BrandButton

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ProfilesClient,
@@ -15,6 +16,7 @@ import AgentProfilesService, {
 import { LLM_PROFILES_QUERY_KEYS } from "#/hooks/query/use-llm-profiles";
 import { AGENT_PROFILES_QUERY_KEYS } from "#/hooks/query/use-agent-profiles";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
+import { I18nKey } from "#/i18n/declaration";
 
 interface ImportFromCentralModalProps {
   isOpen: boolean;
@@ -41,6 +43,7 @@ export function ImportFromCentralModal({
   isOpen,
   onClose,
 }: ImportFromCentralModalProps) {
+  const { t } = useTranslation("openhands");
   const queryClient = useQueryClient();
   const [host, setHost] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -154,7 +157,7 @@ export function ImportFromCentralModal({
         onClick={handleClose}
         isDisabled={isImporting}
       >
-        Fechar
+        {t(I18nKey.BUTTON$CLOSE)}
       </BrandButton>
       <BrandButton
         testId="import-from-central-confirm"
@@ -167,10 +170,12 @@ export function ImportFromCentralModal({
         {isImporting ? (
           <>
             <LoadingSpinner size="small" />
-            <span className="sr-only">Importando…</span>
+            <span className="sr-only">
+              {t(I18nKey.SETTINGS$IMPORTING_LABEL)}
+            </span>
           </>
         ) : (
-          "Importar"
+          t(I18nKey.SETTINGS$IMPORT_BUTTON)
         )}
       </BrandButton>
     </>
@@ -179,29 +184,27 @@ export function ImportFromCentralModal({
   return (
     <ApiKeyModalBase
       isOpen
-      title="Importar do central"
+      title={t(I18nKey.SETTINGS$IMPORT_FROM_CENTRAL)}
       footer={footer}
       onClose={handleClose}
     >
       <div className="flex flex-col gap-4">
         <p className="text-sm text-[var(--oh-text-tertiary)]">
-          Copia os LLM profiles e Agent profiles de outro OpenHands (o
-          "central") para este backend. Requer que o central permita CORS
-          para esta origem.
+          {t(I18nKey.SETTINGS$IMPORT_FROM_CENTRAL_DESCRIPTION)}
         </p>
         <SettingsInput
           testId="import-from-central-host"
-          label="Host do central"
+          label={t(I18nKey.SETTINGS$CENTRAL_HOST_LABEL)}
           name="central-host"
           type="text"
           value={host}
           onChange={setHost}
-          placeholder="https://openhands.zadotec.com.br"
+          placeholder={t(I18nKey.SETTINGS$CENTRAL_HOST_PLACEHOLDER)}
           isDisabled={isImporting}
         />
         <SettingsInput
           testId="import-from-central-key"
-          label="API key do central"
+          label={t(I18nKey.SETTINGS$CENTRAL_API_KEY_LABEL)}
           name="central-key"
           type="password"
           value={apiKey}
@@ -215,8 +218,7 @@ export function ImportFromCentralModal({
             disabled={isImporting}
             onChange={(e) => setIncludeAcp(e.target.checked)}
           />
-          Incluir perfis ACP (Claude Code/Codex/Gemini) — só a estrutura, sem
-          credencial
+          {t(I18nKey.SETTINGS$INCLUDE_ACP_PROFILES_LABEL)}
         </label>
         {log.length > 0 && (
           <div className="max-h-48 overflow-y-auto rounded border border-[var(--oh-border)] p-2 text-xs font-mono">
