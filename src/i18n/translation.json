@@ -42533,6 +42533,23 @@
     "zh-CN": "保存失败。您的更改未被保存。",
     "zh-TW": "儲存失敗。您的變更未被儲存。"
   },
+  "KANBAN$BOARD_FILE_SAVE_ERROR": {
+    "ar": "فشل حفظ ملف اللوحة. سيُعاد المحاولة تلقائيًا.",
+    "ca": "No s'ha pogut desar el fitxer del tauler. Es reintentarà automàticament.",
+    "de": "Speichern der Board-Datei fehlgeschlagen. Wird automatisch erneut versucht.",
+    "en": "Failed to save the board file. It will retry automatically.",
+    "es": "Error al guardar el archivo del tablero. Se reintentará automáticamente.",
+    "fr": "Échec de l'enregistrement du fichier du tableau. Nouvelle tentative automatique.",
+    "it": "Salvataggio del file della bacheca non riuscito. Verrà ritentato automaticamente.",
+    "ja": "ボードファイルの保存に失敗しました。自動的に再試行されます。",
+    "ko-KR": "보드 파일 저장에 실패했습니다. 자동으로 다시 시도됩니다.",
+    "no": "Kunne ikke lagre tavlefilen. Prøver automatisk på nytt.",
+    "pt": "Falha ao salvar o arquivo do quadro. Será tentado novamente automaticamente.",
+    "tr": "Pano dosyası kaydedilemedi. Otomatik olarak yeniden denenecek.",
+    "uk": "Не вдалося зберегти файл дошки. Спроба повториться автоматично.",
+    "zh-CN": "保存看板文件失败。将自动重试。",
+    "zh-TW": "儲存看板檔案失敗。將自動重試。"
+  },
   "KANBAN$COLUMN_TODO": {
     "en": "To Do",
     "ja": "未着手",

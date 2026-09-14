@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "#/i18n";
 import { I18nKey } from "#/i18n/declaration";
 import {
+  __resetKanbanBoardFileWritesForTests,
   KANBAN_BOARD_STORAGE_KEY,
   useKanbanBoardStore,
 } from "#/stores/kanban-board-store";
@@ -11,6 +12,26 @@ vi.mock("#/utils/custom-toast-handlers", () => ({
   displayErrorToast: vi.fn(),
 }));
 
+const getActiveBackendMock = vi.fn<
+  () => { backend: { kind: "local" | "cloud" } }
+>(() => ({
+  backend: { kind: "local" },
+}));
+
+vi.mock("#/api/backend-registry/active-store", () => ({
+  getActiveBackend: () => getActiveBackendMock(),
+}));
+
+vi.mock("#/api/runtime-service/agent-server-runtime-service", () => ({
+  default: {
+    executeCommand: vi.fn(),
+  },
+}));
+
+import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
+
+const executeCommandMock = vi.mocked(AgentServerRuntimeService.executeCommand);
+
 const WORKSPACE_A = "workspace-a";
 const WORKSPACE_B = "workspace-b";
 
@@ -19,6 +40,7 @@ function resetStore() {
     boardsByWorkspaceId: {},
     tasksByBoardId: {},
     lastPersistFailed: false,
+    workspacePathsByWorkspaceId: {},
   });
 }
 
@@ -36,12 +58,19 @@ describe("useKanbanBoardStore", () => {
   beforeEach(() => {
     localStorage.clear();
     resetStore();
+    getActiveBackendMock.mockReturnValue({
+      backend: { kind: "local" as const },
+    });
+    executeCommandMock.mockReset();
+    __resetKanbanBoardFileWritesForTests();
   });
 
   afterEach(() => {
     localStorage.clear();
     resetStore();
+    __resetKanbanBoardFileWritesForTests();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   describe("board actions (CA-04)", () => {
@@ -404,6 +433,249 @@ describe("useKanbanBoardStore", () => {
 
       const state = useKanbanBoardStore.getState();
       expect(state.boardsByWorkspaceId[WORKSPACE_A] ?? []).toHaveLength(0);
+    });
+  });
+
+  // CA-07 / CA-08 / CA-08b / CA-12: file persistence (TECH §2.6).
+  describe("syncFromFile (CA-07)", () => {
+    const WORKSPACE_PATH = "/workspace/a";
+
+    it("does nothing to in-memory state when the backend is Cloud (cloud_unsupported)", async () => {
+      getActiveBackendMock.mockReturnValue({
+        backend: { kind: "cloud" as const },
+      });
+      const boardId = createBoard();
+      useKanbanBoardStore
+        .getState()
+        .createTask(boardId, { title: "Local only", parentId: null });
+
+      await useKanbanBoardStore
+        .getState()
+        .syncFromFile(WORKSPACE_A, WORKSPACE_PATH);
+
+      expect(executeCommandMock).not.toHaveBeenCalled();
+      expect(
+        useKanbanBoardStore.getState().tasksByBoardId[boardId],
+      ).toHaveLength(1);
+    });
+
+    it("merges the on-disk file into in-memory state instead of overwriting it (CA-08)", async () => {
+      const boardId = createBoard(WORKSPACE_A);
+      useKanbanBoardStore
+        .getState()
+        .createTask(boardId, { title: "Local task", parentId: null });
+      const localTask =
+        useKanbanBoardStore.getState().tasksByBoardId[boardId][0];
+
+      const onDiskFile = {
+        version: 1,
+        boards: [
+          {
+            id: boardId,
+            workspaceId: WORKSPACE_A,
+            name: "Board",
+            createdAt: "2025-01-01T00:00:00.000Z",
+          },
+        ],
+        tasksByBoardId: {
+          [boardId]: [
+            {
+              id: "agent-created-task",
+              boardId,
+              parentId: null,
+              level: 1,
+              title: "Written directly by the agent",
+              columnId: "todo",
+              order: 1,
+              createdAt: "2025-01-01T00:00:00.000Z",
+              updatedAt: "2025-01-01T00:00:00.000Z",
+            },
+          ],
+        },
+        updatedAt: "2025-01-01T00:00:00.000Z",
+      };
+      executeCommandMock.mockResolvedValueOnce({
+        exit_code: 0,
+        stdout: JSON.stringify(onDiskFile),
+        stderr: "",
+      });
+
+      await useKanbanBoardStore
+        .getState()
+        .syncFromFile(WORKSPACE_A, WORKSPACE_PATH);
+
+      const tasks = useKanbanBoardStore.getState().tasksByBoardId[boardId];
+      const ids = tasks.map((t) => t.id).sort();
+      expect(ids).toEqual(["agent-created-task", localTask.id].sort());
+    });
+
+    it("lets the newer task win per-task when the same id exists on both sides (CA-08b)", async () => {
+      const boardId = createBoard(WORKSPACE_A);
+      useKanbanBoardStore
+        .getState()
+        .createTask(boardId, { title: "Stale local title", parentId: null });
+      const localTask =
+        useKanbanBoardStore.getState().tasksByBoardId[boardId][0];
+
+      const newerOnDisk = {
+        version: 1,
+        boards: [
+          {
+            id: boardId,
+            workspaceId: WORKSPACE_A,
+            name: "Board",
+            createdAt: "2025-01-01T00:00:00.000Z",
+          },
+        ],
+        tasksByBoardId: {
+          [boardId]: [
+            {
+              ...localTask,
+              title: "Newer title written by the agent",
+              updatedAt: new Date(Date.now() + 60_000).toISOString(),
+            },
+          ],
+        },
+        updatedAt: "2025-01-01T00:00:00.000Z",
+      };
+      executeCommandMock.mockResolvedValueOnce({
+        exit_code: 0,
+        stdout: JSON.stringify(newerOnDisk),
+        stderr: "",
+      });
+
+      await useKanbanBoardStore
+        .getState()
+        .syncFromFile(WORKSPACE_A, WORKSPACE_PATH);
+
+      const merged = useKanbanBoardStore
+        .getState()
+        .tasksByBoardId[boardId].find((t) => t.id === localTask.id);
+      expect(merged?.title).toBe("Newer title written by the agent");
+    });
+
+    it("registers workspacePath so a later mutation schedules a debounced write (CA-12)", async () => {
+      vi.useFakeTimers();
+      executeCommandMock.mockResolvedValue({
+        exit_code: 1,
+        stdout: "",
+        stderr: "",
+      }); // read: not_found on sync
+
+      const boardId = createBoard(WORKSPACE_A);
+      await useKanbanBoardStore
+        .getState()
+        .syncFromFile(WORKSPACE_A, WORKSPACE_PATH);
+      executeCommandMock.mockReset();
+      executeCommandMock.mockResolvedValue({
+        exit_code: 0,
+        stdout: "",
+        stderr: "",
+      });
+
+      useKanbanBoardStore.getState().createTask(boardId, {
+        title: "Triggers write-behind",
+        parentId: null,
+      });
+
+      // No write yet — still inside the 800ms debounce window.
+      expect(executeCommandMock).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(800);
+
+      // read (re-check current disk state) + write.
+      expect(executeCommandMock).toHaveBeenCalled();
+      const commands = executeCommandMock.mock.calls.map((call) => call[2]);
+      expect(commands.some((c) => c.includes("base64 -d >"))).toBe(true);
+    });
+
+    it("does not schedule any write for a workspace syncFromFile was never called for", async () => {
+      vi.useFakeTimers();
+      const boardId = createBoard(WORKSPACE_B);
+
+      useKanbanBoardStore
+        .getState()
+        .createTask(boardId, { title: "No file sync yet", parentId: null });
+
+      await vi.advanceTimersByTimeAsync(800);
+
+      expect(executeCommandMock).not.toHaveBeenCalled();
+    });
+
+    it("debounces a burst of mutations into a single write (CA-12)", async () => {
+      vi.useFakeTimers();
+      executeCommandMock.mockResolvedValue({
+        exit_code: 1,
+        stdout: "",
+        stderr: "",
+      });
+      const boardId = createBoard(WORKSPACE_A);
+      await useKanbanBoardStore
+        .getState()
+        .syncFromFile(WORKSPACE_A, WORKSPACE_PATH);
+      executeCommandMock.mockReset();
+      executeCommandMock.mockResolvedValue({
+        exit_code: 0,
+        stdout: "",
+        stderr: "",
+      });
+
+      const { createTask } = useKanbanBoardStore.getState();
+      createTask(boardId, { title: "One", parentId: null });
+      await vi.advanceTimersByTimeAsync(300);
+      createTask(boardId, { title: "Two", parentId: null });
+      await vi.advanceTimersByTimeAsync(300);
+      createTask(boardId, { title: "Three", parentId: null });
+      await vi.advanceTimersByTimeAsync(800);
+
+      // exactly one write cycle (one "cat" read + one write) despite three
+      // mutations happening within the debounce window.
+      const writeCalls = executeCommandMock.mock.calls.filter((call) =>
+        call[2].includes("base64 -d >"),
+      );
+      expect(writeCalls).toHaveLength(1);
+    });
+
+    it("shows a save-error toast (without undoing the local mutation) when writeBoardFile fails", async () => {
+      vi.useFakeTimers();
+      executeCommandMock.mockResolvedValue({
+        exit_code: 1,
+        stdout: "",
+        stderr: "",
+      });
+      const boardId = createBoard(WORKSPACE_A);
+      await useKanbanBoardStore
+        .getState()
+        .syncFromFile(WORKSPACE_A, WORKSPACE_PATH);
+      executeCommandMock.mockReset();
+      // read fails (not_found) then write fails.
+      executeCommandMock
+        .mockResolvedValueOnce({
+          exit_code: 1,
+          stdout: "",
+          stderr: "not_found",
+        })
+        .mockResolvedValueOnce({
+          exit_code: 1,
+          stdout: "",
+          stderr: "disk full",
+        });
+
+      useKanbanBoardStore
+        .getState()
+        .createTask(boardId, { title: "Optimistic", parentId: null });
+      await vi.advanceTimersByTimeAsync(800);
+      await vi.runOnlyPendingTimersAsync();
+
+      expect(displayErrorToast).toHaveBeenCalledWith(
+        i18n.t(I18nKey.KANBAN$BOARD_FILE_SAVE_ERROR),
+      );
+      // local mutation was not rolled back.
+      expect(
+        useKanbanBoardStore
+          .getState()
+          .tasksByBoardId[boardId].some((t) => t.title === "Optimistic"),
+      ).toBe(true);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import {
   DndContext,
@@ -18,6 +18,7 @@ import { getColumnsForTask } from "#/components/features/kanban/kanban-column-pr
 import { CreateTaskModal } from "#/components/features/kanban/create-task-modal";
 import { KanbanTaskDrawer } from "#/components/features/kanban/kanban-task-drawer";
 import { BrandButton } from "#/components/features/settings/brand-button";
+import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 
 // Stable reference so the Zustand selector below doesn't return a fresh
 // array on every call when the board has no tasks yet — a fresh `[]`
@@ -42,6 +43,26 @@ export default function KanbanBoardRoute() {
     boardId ? (state.tasksByBoardId[boardId] ?? EMPTY_TASKS) : EMPTY_TASKS,
   );
   const moveTask = useKanbanBoardStore((state) => state.moveTask);
+  const syncFromFile = useKanbanBoardStore((state) => state.syncFromFile);
+  const workspaceId = useKanbanBoardStore((state) => {
+    if (!boardId) return undefined;
+    const entry = Object.entries(state.boardsByWorkspaceId).find(([, boards]) =>
+      boards.some((b) => b.id === boardId),
+    );
+    return entry?.[0];
+  });
+  const { data: workspacesData } = useLocalWorkspaces();
+  const workspacePath = workspacesData?.workspaces.find(
+    (w) => w.id === workspaceId,
+  )?.path;
+
+  // Same rationale as board-list.tsx: pull board.json into the store on
+  // entry so agent-driven changes (RF-09) are reflected here.
+  useEffect(() => {
+    if (workspaceId && workspacePath) {
+      void syncFromFile(workspaceId, workspacePath);
+    }
+  }, [workspaceId, workspacePath]);
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [openTask, setOpenTask] = useState<KanbanTask | null>(null);

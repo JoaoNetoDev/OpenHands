@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { useNavigation } from "#/context/navigation-context";
 import { useSystemSettings } from "#/hooks/use-system-settings";
+import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { useKanbanBoardStore } from "#/stores/kanban-board-store";
 import type { KanbanBoard, KanbanTask } from "#/types/kanban";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -164,6 +165,10 @@ export default function BoardListRoute() {
   const { navigate } = useNavigation();
   const { settings } = useSystemSettings();
   const workspaceId = settings.defaultWorkspaceId;
+  const { data: workspacesData } = useLocalWorkspaces();
+  const workspacePath = workspacesData?.workspaces.find(
+    (w) => w.id === workspaceId,
+  )?.path;
 
   const boards = useKanbanBoardStore((state) =>
     workspaceId
@@ -173,6 +178,18 @@ export default function BoardListRoute() {
   const tasksByBoardId = useKanbanBoardStore((state) => state.tasksByBoardId);
   const createBoard = useKanbanBoardStore((state) => state.createBoard);
   const renameBoard = useKanbanBoardStore((state) => state.renameBoard);
+  const syncFromFile = useKanbanBoardStore((state) => state.syncFromFile);
+
+  // Pull board.json (if this workspace has ever been synced to one) into the
+  // store on entry, so agent-driven changes made outside the browser (RF-09)
+  // are visible here. No-op on Cloud / when the file doesn't exist yet.
+  useEffect(() => {
+    if (workspaceId && workspacePath) {
+      void syncFromFile(workspaceId, workspacePath);
+    }
+    // Only re-sync when the resolved workspace identity changes, not on
+    // every store mutation (syncFromFile itself triggers store updates).
+  }, [workspaceId, workspacePath]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [boardToRename, setBoardToRename] = useState<KanbanBoard | null>(null);

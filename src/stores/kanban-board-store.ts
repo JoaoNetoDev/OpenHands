@@ -11,8 +11,101 @@ import { collectDescendantIds, reindexAfterMove } from "#/utils/kanban-tree";
 import i18n from "#/i18n";
 import { I18nKey } from "#/i18n/declaration";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
+import {
+  mergeBoardFiles,
+  readBoardFile,
+  writeBoardFile,
+  type KanbanBoardFile,
+} from "#/api/kanban-board-file.api";
 
 export const KANBAN_BOARD_STORAGE_KEY = "openhands-kanban-board";
+
+/** Write-behind debounce delay (TECH §2.6): a mutation schedules a
+ * `board.json` write this many ms in the future, resetting the timer on
+ * every subsequent mutation to the same workspace, so a burst of edits
+ * results in a single write instead of one per keystroke/drag. */
+const BOARD_FILE_WRITE_DEBOUNCE_MS = 800;
+
+/** One pending write timer per `workspaceId`, module-level (outside the
+ * store) so it survives across `set()` calls and is shared by every
+ * mutating action. */
+const pendingWriteTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/** Builds the `board.json` envelope for a single workspace from the
+ * in-memory store state — only the boards that belong to `workspaceId` and
+ * their tasks, never the whole cross-workspace state. */
+function buildBoardFileForWorkspace(
+  state: Pick<KanbanBoardState, "boardsByWorkspaceId" | "tasksByBoardId">,
+  workspaceId: string,
+): KanbanBoardFile {
+  const boards = state.boardsByWorkspaceId[workspaceId] ?? [];
+  const tasksByBoardId: Record<string, KanbanTask[]> = {};
+  boards.forEach((board) => {
+    tasksByBoardId[board.id] = state.tasksByBoardId[board.id] ?? [];
+  });
+  return {
+    version: 1,
+    boards,
+    tasksByBoardId,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function findWorkspaceIdForBoard(
+  state: Pick<KanbanBoardState, "boardsByWorkspaceId">,
+  boardId: string,
+): string | null {
+  const entry = Object.entries(state.boardsByWorkspaceId).find(([, boards]) =>
+    boards.some((b) => b.id === boardId),
+  );
+  return entry ? entry[0] : null;
+}
+
+/**
+ * Schedules a debounced write-behind of `board.json` for `workspaceId`
+ * (TECH §2.6). A no-op when `syncFromFile` was never called for this
+ * workspace in this session (`workspacePathsByWorkspaceId` has no entry) —
+ * matches v1 behavior (localStorage-only) until the caller has explicitly
+ * opted a workspace into file persistence.
+ *
+ * `writeBoardFile` itself re-reads the current on-disk file and merges
+ * task-by-task before writing (read-modify-write, see
+ * `kanban-board-file.api.ts`) — this function only decides *when* to call
+ * it, not how the merge happens.
+ */
+function debouncedWriteBoardFile(
+  getState: () => KanbanBoardStore,
+  workspaceId: string,
+): void {
+  const workspacePath = getState().workspacePathsByWorkspaceId[workspaceId];
+  if (!workspacePath) return;
+
+  const existingTimer = pendingWriteTimers.get(workspaceId);
+  if (existingTimer) clearTimeout(existingTimer);
+
+  const timer = setTimeout(() => {
+    pendingWriteTimers.delete(workspaceId);
+    const state = getState();
+    const file = buildBoardFileForWorkspace(state, workspaceId);
+    writeBoardFile(workspacePath, workspaceId, file)
+      .then((result) => {
+        if (!result.ok) {
+          displayErrorToast(i18n.t(I18nKey.KANBAN$BOARD_FILE_SAVE_ERROR));
+        }
+      })
+      .catch(() => {
+        displayErrorToast(i18n.t(I18nKey.KANBAN$BOARD_FILE_SAVE_ERROR));
+      });
+  }, BOARD_FILE_WRITE_DEBOUNCE_MS);
+  pendingWriteTimers.set(workspaceId, timer);
+}
+
+/** Test-only: clears any pending debounced writes and the module-level
+ * timer map, so tests don't leak timers/state across cases. */
+export function __resetKanbanBoardFileWritesForTests(): void {
+  pendingWriteTimers.forEach((timer) => clearTimeout(timer));
+  pendingWriteTimers.clear();
+}
 
 /** Current `persist` schema version (SPEC §2.4 / TECH §2.4). Bump this and
  * extend `migrate` whenever the persisted shape changes. */
@@ -28,6 +121,15 @@ interface KanbanBoardState {
    * `trySet` also fires an error toast whenever a write fails.
    */
   lastPersistFailed: boolean;
+  /**
+   * `workspacePath` registered by the most recent `syncFromFile` call for
+   * each `workspaceId` (TECH §2.6). Ephemeral, runtime-only — deliberately
+   * excluded from `partialize` below, never persisted to `localStorage`.
+   * A workspace with no entry here has never opted into file persistence
+   * in this session, so mutations only write to `localStorage` (v1
+   * behavior), matching the Cloud-backend fallback.
+   */
+  workspacePathsByWorkspaceId: Record<string, string>;
 }
 
 interface KanbanBoardActions {
@@ -72,6 +174,17 @@ interface KanbanBoardActions {
     toOrder: number,
   ) => boolean;
   getChildren: (boardId: string, parentId: string | null) => KanbanTask[];
+
+  /**
+   * Reads `board.json` for `workspaceId` (no-op with `{ ok: false,
+   * error: "cloud_unsupported" }` behavior on Cloud, handled inside
+   * `readBoardFile`), merges it against the in-memory state task-by-task
+   * (`mergeBoardFiles`, most recent `updatedAt` wins per task) instead of
+   * overwriting, and registers `workspacePath` so subsequent mutations
+   * start writing this workspace's `board.json` in the background
+   * (TECH §2.6). Safe to call repeatedly (e.g. on every route entry).
+   */
+  syncFromFile: (workspaceId: string, workspacePath: string) => Promise<void>;
 }
 
 type KanbanBoardStore = KanbanBoardState & KanbanBoardActions;
@@ -210,6 +323,7 @@ export const useKanbanBoardStore = create<KanbanBoardStore>()(
       boardsByWorkspaceId: {},
       tasksByBoardId: {},
       lastPersistFailed: false,
+      workspacePathsByWorkspaceId: {},
 
       createBoard: (workspaceId, name) => {
         const trimmed = name.trim();
@@ -224,6 +338,7 @@ export const useKanbanBoardStore = create<KanbanBoardStore>()(
         // In-memory state is always applied (optimistic), even when the
         // `localStorage` write itself fails — see `trySetBoards`.
         trySetBoards(set, workspaceId, [...boards, newBoard]);
+        debouncedWriteBoardFile(get, workspaceId);
         return newBoard;
       },
 
@@ -231,20 +346,24 @@ export const useKanbanBoardStore = create<KanbanBoardStore>()(
         const trimmed = name.trim();
         if (!trimmed) return false;
         const boards = get().boardsByWorkspaceId[workspaceId] ?? [];
-        return trySetBoards(
+        const ok = trySetBoards(
           set,
           workspaceId,
           boards.map((b) => (b.id === boardId ? { ...b, name: trimmed } : b)),
         );
+        debouncedWriteBoardFile(get, workspaceId);
+        return ok;
       },
 
       updateBoardChecklist: (workspaceId, boardId, checklist) => {
         const boards = get().boardsByWorkspaceId[workspaceId] ?? [];
-        return trySetBoards(
+        const ok = trySetBoards(
           set,
           workspaceId,
           boards.map((b) => (b.id === boardId ? { ...b, checklist } : b)),
         );
+        debouncedWriteBoardFile(get, workspaceId);
+        return ok;
       },
 
       deleteBoard: (workspaceId, boardId) => {
@@ -261,6 +380,7 @@ export const useKanbanBoardStore = create<KanbanBoardStore>()(
             ),
           ),
         });
+        debouncedWriteBoardFile(get, workspaceId);
         return boardsOk;
       },
 
@@ -291,12 +411,15 @@ export const useKanbanBoardStore = create<KanbanBoardStore>()(
           createdAt: now,
           updatedAt: now,
         };
-        return trySetTasks(set, boardId, [...tasks, newTask]);
+        const ok = trySetTasks(set, boardId, [...tasks, newTask]);
+        const workspaceId = findWorkspaceIdForBoard(get(), boardId);
+        if (workspaceId) debouncedWriteBoardFile(get, workspaceId);
+        return ok;
       },
 
       updateTask: (boardId, taskId, patch) => {
         const tasks = get().tasksByBoardId[boardId] ?? [];
-        return trySetTasks(
+        const ok = trySetTasks(
           set,
           boardId,
           tasks.map((t) =>
@@ -305,34 +428,83 @@ export const useKanbanBoardStore = create<KanbanBoardStore>()(
               : t,
           ),
         );
+        const workspaceId = findWorkspaceIdForBoard(get(), boardId);
+        if (workspaceId) debouncedWriteBoardFile(get, workspaceId);
+        return ok;
       },
 
       deleteTask: (boardId, taskId) => {
         const tasks = get().tasksByBoardId[boardId] ?? [];
         const toRemove = collectDescendantIds(tasks, taskId);
         toRemove.add(taskId);
-        return trySetTasks(
+        const ok = trySetTasks(
           set,
           boardId,
           tasks.filter((t) => !toRemove.has(t.id)),
         );
+        const workspaceId = findWorkspaceIdForBoard(get(), boardId);
+        if (workspaceId) debouncedWriteBoardFile(get, workspaceId);
+        return ok;
       },
 
       moveTask: (boardId, taskId, toColumnId, toOrder) => {
         const tasks = get().tasksByBoardId[boardId] ?? [];
-        return trySetTasks(
+        const ok = trySetTasks(
           set,
           boardId,
           reindexAfterMove(tasks, taskId, toColumnId, toOrder).map((t) =>
             t.id === taskId ? { ...t, updatedAt: new Date().toISOString() } : t,
           ),
         );
+        const workspaceId = findWorkspaceIdForBoard(get(), boardId);
+        if (workspaceId) debouncedWriteBoardFile(get, workspaceId);
+        return ok;
       },
 
       getChildren: (boardId, parentId) =>
         (get().tasksByBoardId[boardId] ?? []).filter(
           (t) => t.parentId === parentId,
         ),
+
+      syncFromFile: async (workspaceId, workspacePath) => {
+        safeSet(set, {
+          workspacePathsByWorkspaceId: {
+            ...get().workspacePathsByWorkspaceId,
+            [workspaceId]: workspacePath,
+          },
+        });
+
+        const result = await readBoardFile(workspacePath, workspaceId);
+        if (!result.ok) {
+          // cloud_unsupported / not_found / invalid_schema — stay on
+          // localStorage-only for this workspace (same as v1).
+          return;
+        }
+
+        const state = get();
+        const memoryFile = buildBoardFileForWorkspace(state, workspaceId);
+        const merged = mergeBoardFiles(result.data, memoryFile);
+
+        const oldBoardIds = new Set(
+          (state.boardsByWorkspaceId[workspaceId] ?? []).map((b) => b.id),
+        );
+        const newBoardIds = new Set(merged.boards.map((b) => b.id));
+        const nextTasksByBoardId: Record<string, KanbanTask[]> = {
+          ...state.tasksByBoardId,
+        };
+        oldBoardIds.forEach((id) => {
+          if (!newBoardIds.has(id)) delete nextTasksByBoardId[id];
+        });
+        Object.assign(nextTasksByBoardId, merged.tasksByBoardId);
+
+        safeSet(set, {
+          boardsByWorkspaceId: {
+            ...get().boardsByWorkspaceId,
+            [workspaceId]: merged.boards,
+          },
+          tasksByBoardId: nextTasksByBoardId,
+        });
+      },
     }),
     {
       name: KANBAN_BOARD_STORAGE_KEY,
