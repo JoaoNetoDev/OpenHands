@@ -42515,5 +42515,22 @@
     "de": "Systemeinstellungen konnten nicht gespeichert werden. Bitte erneut versuchen.",
     "uk": "Не вдалося зберегти системні налаштування. Спробуйте ще раз.",
     "ca": "No s'ha pogut desar la configuració del sistema. Torna-ho a provar."
+  },
+  "KANBAN$SAVE_ERROR": {
+    "ar": "فشل الحفظ. لم يتم حفظ التغيير.",
+    "ca": "No s'ha pogut desar. El canvi no s'ha conservat.",
+    "de": "Speichern fehlgeschlagen. Ihre Änderung wurde nicht gespeichert.",
+    "en": "Failed to save. Your change wasn't persisted.",
+    "es": "Error al guardar. Tu cambio no se guardó.",
+    "fr": "Échec de l'enregistrement. Votre modification n'a pas été conservée.",
+    "it": "Salvataggio non riuscito. La modifica non è stata salvata.",
+    "ja": "保存に失敗しました。変更内容は保存されませんでした。",
+    "ko-KR": "저장에 실패했습니다. 변경 사항이 저장되지 않았습니다.",
+    "no": "Lagring mislyktes. Endringen din ble ikke lagret.",
+    "pt": "Falha ao salvar. Sua alteração não foi persistida.",
+    "tr": "Kaydetme başarısız oldu. Değişikliğiniz kaydedilmedi.",
+    "uk": "Не вдалося зберегти. Вашу зміну не збережено.",
+    "zh-CN": "保存失败。您的更改未被保存。",
+    "zh-TW": "儲存失敗。您的變更未被儲存。"
   }
 }
