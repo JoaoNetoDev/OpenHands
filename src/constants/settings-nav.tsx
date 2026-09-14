@@ -1,4 +1,4 @@
-import { AppWindow, Brain, Shield } from "lucide-react";
+import { AppWindow, Brain, Settings2, Shield } from "lucide-react";
 import KeyIcon from "#/icons/key.svg?react";
 import MemoryIcon from "#/icons/memory_icon.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
@@ -46,6 +46,12 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     to: "/settings/agent-context",
     text: "SETTINGS$NAV_AGENT_CONTEXT",
     subtitle: "SETTINGS$PAGE_AGENT_CONTEXT_SUBLINE",
+  },
+  {
+    icon: <Settings2 className="size-4" strokeWidth={2} aria-hidden />,
+    to: "/settings/system",
+    text: "SETTINGS$NAV_SYSTEM",
+    subtitle: "SETTINGS$PAGE_SYSTEM_SUBLINE",
   },
   {
     icon: <Shield className="size-4" strokeWidth={2} aria-hidden />,
