@@ -162,9 +162,10 @@ fora do túnel seguindo para o backend local).
 - [x] `npm run typecheck` limpo; `npm run build` ok.
 - [x] Testes novos: 18/18; suíte existente do ingress: 22/22 (sem regressão).
 - [x] Nada de código Go neste repo (RISCO-01 respeitado).
-- [ ] Criar o repo no GitHub e dar push — **pendente de confirmação do nome**
-      (o próprio `SPRINT-01-DECISIONS.md` §1 pede para confirmar o nome antes
-      de criar). O commit inicial já existe localmente: `135550e`.
+- [x] Repo criado e enviado: `JoaoNetoDev/openhands-tray` (**privado**), commit
+      inicial `135550e`. Nome confirmado pelo usuário; a visibilidade não estava
+      especificada em nenhum doc, então foi criado privado (dá para tornar
+      público depois).
 
 ## Comandos de verificação
 
