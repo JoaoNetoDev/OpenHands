@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Sistema — menu de configurações</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 780px; margin: 40px auto; padding: 0 20px; line-height: 1.6; background: Canvas; color: CanvasText; }
+  h1 { font-size: 1.6rem; } h2 { font-size: 1.2rem; margin-top: 2rem; border-bottom: 1px solid rgba(128,128,128,.3); padding-bottom: .3rem; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+  .wave1 { background: #dbeafe; color: #1e3a8a; } .wave2 { background: #fde68a; color: #78350f; } .wave3 { background: #bbf7d0; color: #14532d; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  td, th { border: 1px solid rgba(128,128,128,.3); padding: 8px 10px; text-align: left; font-size: .9rem; }
+  .risk { background: rgba(248,113,113,.1); border-left: 3px solid #f87171; padding: 10px 14px; margin: .8rem 0; }
+  .out { background: rgba(148,163,184,.15); border-left: 3px solid #94a3b8; padding: 10px 14px; margin: .8rem 0; }
+</style>
+</head>
+<body>
+<h1>Sistema — novo menu de configurações</h1>
+<p>Primeiro de quatro pacotes de trabalho rumo ao board Kanban de planejamento de features. Este pacote entrega uma tela nova, "Sistema", onde a pessoa usuária define três coisas uma única vez: qual pasta de trabalho usar por padrão, qual modelo de IA usar por padrão, e um texto de contexto (nome do time, convenções, preferências) que os próximos pacotes vão reaproveitar.</p>
+
+<h2>O que muda para quem usa o produto</h2>
+<ul>
+  <li>Uma nova opção "Sistema" aparece no menu de configurações.</li>
+  <li>Nela: escolher a pasta de trabalho padrão, escolher o modelo de IA padrão, escrever um texto de contexto com formatação simples (negrito, itálico, listas, links).</li>
+  <li>Esses três valores ficam salvos neste computador (não sincronizam entre máquinas nesta primeira versão).</li>
+</ul>
+
+<h2>Linha do tempo — 3 sprints, ondas sequenciais</h2>
+<table>
+<tr><th>Sprint</th><th>Onda</th><th>Entrega</th></tr>
+<tr><td>SPRINT-01</td><td><span class="badge wave1">1</span></td><td>Guardar e ler as três configurações no computador da pessoa usuária.</td></tr>
+<tr><td>SPRINT-02</td><td><span class="badge wave2">2</span></td><td>Caixa de texto com formatação simples, já protegida contra conteúdo malicioso colado.</td></tr>
+<tr><td>SPRINT-03</td><td><span class="badge wave3">3</span></td><td>A tela em si, ligada ao menu, em todos os idiomas do produto.</td></tr>
+</table>
+
+<h2>Riscos</h2>
+<div class="risk"><strong>Sem sincronização entre máquinas.</strong> Se a pessoa usar o produto em dois computadores, precisa configurar os dois separadamente. Aceito conscientemente para entregar mais rápido; pode virar um pacote futuro.</div>
+<div class="risk"><strong>Editor de texto simples usa uma tecnologia mais antiga do navegador.</strong> Funciona nos ambientes suportados hoje, mas será testado manualmente (não só automaticamente) antes de cada entrega, porque esse tipo de tecnologia varia sutilmente entre navegadores.</div>
+
+<h2>O que fica de fora deste pacote</h2>
+<div class="out">O quadro Kanban em si, o contexto por tarefa/cartão, o anexo de arquivos, e a geração de arquivos de resumo — cada um é o próximo pacote da sequência (kanban-3-niveis → kanban-card-contexto-arquivos → kanban-pipeline-featdevelop).</div>
+</body>
+</html>

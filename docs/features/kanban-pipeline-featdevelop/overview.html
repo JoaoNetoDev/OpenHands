@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Board ligado ao pipeline featdevelop</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 780px; margin: 40px auto; padding: 0 20px; line-height: 1.6; background: Canvas; color: CanvasText; }
+  h1 { font-size: 1.6rem; } h2 { font-size: 1.2rem; margin-top: 2rem; border-bottom: 1px solid rgba(128,128,128,.3); padding-bottom: .3rem; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+  .wave1 { background: #dbeafe; color: #1e3a8a; } .wave2 { background: #fde68a; color: #78350f; } .wave3 { background: #bbf7d0; color: #14532d; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  td, th { border: 1px solid rgba(128,128,128,.3); padding: 8px 10px; text-align: left; font-size: .9rem; }
+  .risk { background: rgba(248,113,113,.1); border-left: 3px solid #f87171; padding: 10px 14px; margin: .8rem 0; }
+  .out { background: rgba(148,163,184,.15); border-left: 3px solid #94a3b8; padding: 10px 14px; margin: .8rem 0; }
+</style>
+</head>
+<body>
+<h1>Board ligado ao pipeline de planejamento (featdevelop)</h1>
+<p>Quarto e último pacote da sequência. Uma tarefa grande do board pode ser vinculada a uma feature real do fluxo de planejamento ponta-a-ponta (PRD → arquitetura → design detalhado → sprints). O card ganha um botão para abrir uma conversa com um agente que conduz esse fluxo, e passa a mostrar, dentro do próprio board, os documentos que o agente for produzindo.</p>
+
+<h2>O que muda para quem usa o produto</h2>
+<ul>
+  <li>Um card de tarefa grande pode receber um "codinome" de feature.</li>
+  <li>As colunas desse card passam a ser as etapas do planejamento (Ideia → PRD → Arquitetura → Design → Sprints → Concluído) em vez das 3 colunas genéricas.</li>
+  <li>Botão "Rodar com agente" abre uma conversa nova já direcionada à pasta certa do projeto.</li>
+  <li>O card mostra, sem sair do board, os documentos que o agente já escreveu.</li>
+</ul>
+
+<h2>Linha do tempo — 3 sprints</h2>
+<table>
+<tr><th>Sprint</th><th>Onda</th><th>Entrega</th></tr>
+<tr><td>SPRINT-01</td><td><span class="badge wave1">1</span></td><td>Validação do codinome da feature e leitura dos documentos gerados.</td></tr>
+<tr><td>SPRINT-02</td><td><span class="badge wave2">2</span></td><td>Botão de rodar o agente e as novas colunas de pipeline.</td></tr>
+<tr><td>SPRINT-03</td><td><span class="badge wave3">3</span></td><td>Tudo junto na tela do card.</td></tr>
+</table>
+
+<h2>Riscos</h2>
+<div class="risk"><strong>Mover o card entre etapas continua manual.</strong> O produto não tenta adivinhar sozinho em que fase o agente está — a pessoa usuária arrasta o card quando cada etapa é aprovada. Decisão consciente para não construir algo frágil.</div>
+<div class="risk"><strong>Sem volta automática da conversa para o card.</strong> O que o agente escreve na conversa não entra sozinho nas anotações do card — só os documentos formais (PRD, arquitetura, etc.) aparecem automaticamente.</div>
+
+<h2>O que fica de fora deste pacote</h2>
+<div class="out">Suporte a outros fluxos de planejamento além do já existente, e qualquer automação que mova cards sozinha.</div>
+</body>
+</html>

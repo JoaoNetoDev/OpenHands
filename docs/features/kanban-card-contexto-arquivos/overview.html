@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Contexto, arquivos e sinterização por card</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 780px; margin: 40px auto; padding: 0 20px; line-height: 1.6; background: Canvas; color: CanvasText; }
+  h1 { font-size: 1.6rem; } h2 { font-size: 1.2rem; margin-top: 2rem; border-bottom: 1px solid rgba(128,128,128,.3); padding-bottom: .3rem; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+  .wave1 { background: #dbeafe; color: #1e3a8a; } .wave2 { background: #fde68a; color: #78350f; } .wave3 { background: #bbf7d0; color: #14532d; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  td, th { border: 1px solid rgba(128,128,128,.3); padding: 8px 10px; text-align: left; font-size: .9rem; }
+  .risk { background: rgba(248,113,113,.1); border-left: 3px solid #f87171; padding: 10px 14px; margin: .8rem 0; }
+  .out { background: rgba(148,163,184,.15); border-left: 3px solid #94a3b8; padding: 10px 14px; margin: .8rem 0; }
+</style>
+</head>
+<body>
+<h1>Contexto, arquivos e sinterização por card</h1>
+<p>Terceiro dos quatro pacotes. Cada card do board ganha dois campos de anotação (contexto do usuário e contexto do agente) e a possibilidade de anexar arquivos. Um botão "Sinterizar" grava tudo isso como um arquivo de resumo (.md) dentro da pasta do projeto — assim o conteúdo do card passa a existir de verdade no repositório, não só na memória do navegador.</p>
+
+<h2>O que muda para quem usa o produto</h2>
+<ul>
+  <li>Cada card ganha uma área de contexto (usuário/agente) e anexos.</li>
+  <li>Botão "Sinterizar" grava um resumo em Markdown + os anexos na pasta do projeto.</li>
+  <li>Essa ação só funciona quando o Canvas está rodando localmente (não na nuvem) — explicado na própria tela.</li>
+</ul>
+
+<h2>Linha do tempo — 3 sprints</h2>
+<table>
+<tr><th>Sprint</th><th>Onda</th><th>Entrega</th></tr>
+<tr><td>SPRINT-01</td><td><span class="badge wave1">1</span></td><td>Mecanismo seguro de gravar arquivo na pasta do projeto.</td></tr>
+<tr><td>SPRINT-02</td><td><span class="badge wave2">2</span></td><td>Campos de contexto e anexos no card.</td></tr>
+<tr><td>SPRINT-03</td><td><span class="badge wave3">3</span></td><td>Botão "Sinterizar" e avisos de quando ele não está disponível.</td></tr>
+</table>
+
+<h2>Riscos</h2>
+<div class="risk"><strong>Segurança em primeiro plano.</strong> Gravar arquivos a partir de texto digitado pelo usuário é uma operação sensível — foi desenhada especificamente para que nada do que a pessoa digite possa "escapar" e rodar comandos indesejados no computador. Essa proteção foi revisada e testada com entradas propositalmente maliciosas antes de ser aceita.</div>
+<div class="risk"><strong>Só funciona localmente.</strong> Na versão hospedada em nuvem, essa ação fica desabilitada nesta primeira versão.</div>
+
+<h2>O que fica de fora deste pacote</h2>
+<div class="out">Ligar as colunas do board ao fluxo de planejamento de features (featdevelop) e permitir que um agente de IA interaja com os cards automaticamente — próximo e último pacote da sequência.</div>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Board Kanban de 3 níveis</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 780px; margin: 40px auto; padding: 0 20px; line-height: 1.6; background: Canvas; color: CanvasText; }
+  h1 { font-size: 1.6rem; } h2 { font-size: 1.2rem; margin-top: 2rem; border-bottom: 1px solid rgba(128,128,128,.3); padding-bottom: .3rem; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+  .wave1 { background: #dbeafe; color: #1e3a8a; } .wave2 { background: #fde68a; color: #78350f; } .wave3 { background: #bbf7d0; color: #14532d; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  td, th { border: 1px solid rgba(128,128,128,.3); padding: 8px 10px; text-align: left; font-size: .9rem; }
+  .risk { background: rgba(248,113,113,.1); border-left: 3px solid #f87171; padding: 10px 14px; margin: .8rem 0; }
+  .out { background: rgba(148,163,184,.15); border-left: 3px solid #94a3b8; padding: 10px 14px; margin: .8rem 0; }
+</style>
+</head>
+<body>
+<h1>Board Kanban de 3 níveis</h1>
+<p>Segundo dos quatro pacotes. Entrega um quadro de tarefas dentro do Agent Canvas: uma tarefa grande pode ser dividida em subtarefas, e cada subtarefa em sub-subtarefas — até 3 níveis de profundidade. Cards podem ser arrastados entre as colunas "A Fazer", "Em Andamento" e "Concluído" em qualquer nível.</p>
+
+<h2>O que muda para quem usa o produto</h2>
+<ul>
+  <li>Uma nova área "Board" no menu principal (fora de configurações).</li>
+  <li>Criar/editar/excluir tarefas nos 3 níveis; excluir uma tarefa pai avisa quantas tarefas filhas serão removidas junto.</li>
+  <li>Arrastar cards entre colunas; cada card de nível 1 ou 2 mostra quantas subtarefas já foram concluídas.</li>
+  <li>Cada pasta de trabalho (workspace) tem seu próprio board, guardado neste computador.</li>
+</ul>
+
+<h2>Linha do tempo — 3 sprints</h2>
+<table>
+<tr><th>Sprint</th><th>Onda</th><th>Entrega</th></tr>
+<tr><td>SPRINT-01</td><td><span class="badge wave1">1</span></td><td>Estrutura de dados das tarefas e onde ficam guardadas.</td></tr>
+<tr><td>SPRINT-02</td><td><span class="badge wave2">2</span></td><td>Colunas, cards e arrastar-e-soltar.</td></tr>
+<tr><td>SPRINT-03</td><td><span class="badge wave3">3</span></td><td>Tela final, navegação entre os 3 níveis, menu.</td></tr>
+</table>
+
+<h2>Riscos</h2>
+<div class="risk"><strong>Nova biblioteca de arrastar-e-soltar.</strong> O produto não tinha essa peça antes; escolhemos uma opção moderna e bem mantida, mas é uma dependência nova a acompanhar.</div>
+<div class="risk"><strong>Sem sincronização entre computadores</strong>, mesma decisão do pacote anterior (Sistema).</div>
+
+<h2>O que fica de fora deste pacote</h2>
+<div class="out">Anotar contexto e anexar arquivos em cada card, gerar resumos em Markdown, e ligar as colunas ao fluxo de planejamento de features (featdevelop) — próximos dois pacotes.</div>
+</body>
+</html>
