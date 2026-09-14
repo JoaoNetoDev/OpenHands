@@ -28,7 +28,17 @@ interface KanbanBoardActions {
   updateTask: (
     workspaceId: string,
     taskId: string,
-    patch: Partial<Pick<KanbanTask, "title" | "description">>,
+    patch: Partial<
+      Pick<
+        KanbanTask,
+        | "title"
+        | "description"
+        | "userContextHtml"
+        | "agentContextHtml"
+        | "attachments"
+        | "lastSinteredAt"
+      >
+    >,
   ) => boolean;
   deleteTask: (workspaceId: string, taskId: string) => boolean;
   moveTask: (

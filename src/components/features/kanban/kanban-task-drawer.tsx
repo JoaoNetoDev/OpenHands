@@ -17,6 +17,8 @@ import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { KanbanColumn } from "./kanban-column";
 import { CreateTaskModal } from "./create-task-modal";
 import { DeleteTaskConfirmDialog } from "./delete-task-confirm-dialog";
+import { CardContextPanel } from "./card-context-panel";
+import { CardAttachments } from "./card-attachments";
 
 const COLUMNS: KanbanColumnId[] = ["todo", "in_progress", "done"];
 
@@ -141,6 +143,9 @@ export function KanbanTaskDrawer({
             onBlur={handleFieldBlur}
           />
         </label>
+
+        <CardContextPanel workspaceId={workspaceId} task={task} />
+        <CardAttachments workspaceId={workspaceId} task={task} />
 
         <div className="flex justify-end">
           <BrandButton
