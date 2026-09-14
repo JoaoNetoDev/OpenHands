@@ -63,6 +63,25 @@ export function ChatInputModelMenuContent({
     onClose();
   };
 
+  // Composes `<baseModel>/<effort>` (or the bare base model to clear the
+  // effort override) and reuses the same model-switch mutation — an effort
+  // pick is just another `acp_model` value from the ACP wrapper's own
+  // config-option split (see software-agent-sdk's
+  // `_claude_model_config_options`).
+  const handleSelectEffort = (effortId: string | null) => {
+    if (!model.baseModelId) return;
+    const targetModelId = effortId
+      ? `${model.baseModelId}/${effortId}`
+      : model.baseModelId;
+    if (targetModelId !== model.currentModelId) {
+      switchAcpModel.mutate({
+        conversationId: model.switchConversationId,
+        model: targetModelId,
+      });
+    }
+    onClose();
+  };
+
   return (
     <>
       {model.showAcpPicker ? (
@@ -116,7 +135,54 @@ export function ChatInputModelMenuContent({
           </div>
         </li>
       ) : null}
-      {hasModelRows && <Divider inset={dividerInset} />}
+      {hasModelRows && model.showEffortPicker && (
+        <Divider inset={dividerInset} />
+      )}
+      {model.showEffortPicker && (
+        <>
+          <li role="presentation" className="px-2 pt-1 pb-0.5">
+            <Typography.Text className="text-[11px] font-medium text-[var(--oh-text-dim)] uppercase tracking-wide leading-4">
+              {t(I18nKey.MODEL$EFFORT_LABEL)}
+            </Typography.Text>
+          </li>
+          {[
+            { id: null, label: t(I18nKey.MODEL$EFFORT_DEFAULT) },
+            ...model.availableAcpEfforts,
+          ].map((option) => {
+            const isSelected = option.id === model.currentEffortId;
+            return (
+              <ContextMenuListItem
+                key={option.id ?? "default"}
+                testId={`chat-input-acp-effort-option-${option.id ?? "default"}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  handleSelectEffort(option.id);
+                }}
+                className={cn(
+                  "flex items-center gap-2",
+                  isSelected && "bg-[var(--oh-interactive-hover)]",
+                )}
+              >
+                <span className="flex-1 truncate text-sm leading-5">
+                  {option.label}
+                </span>
+                {isSelected && (
+                  <CheckIcon
+                    width={14}
+                    height={14}
+                    className="shrink-0"
+                    aria-hidden
+                  />
+                )}
+              </ContextMenuListItem>
+            );
+          })}
+        </>
+      )}
+      {(hasModelRows || model.showEffortPicker) && (
+        <Divider inset={dividerInset} />
+      )}
       <li className="text-sm">
         <NavigationLink
           to={model.destinationPath}

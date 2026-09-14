@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   ACP_MANAGED_SENTINEL,
+  getAcpProviderEfforts,
   resolveEffectiveAcpModel,
+  splitAcpModelEffort,
 } from "./acp-providers";
 
 describe("resolveEffectiveAcpModel", () => {
@@ -52,5 +54,50 @@ describe("resolveEffectiveAcpModel", () => {
         providerDefault: "opus[1m]",
       }),
     ).toBe("default");
+  });
+});
+
+describe("getAcpProviderEfforts", () => {
+  it("returns the curated effort levels for claude-code", () => {
+    const efforts = getAcpProviderEfforts("claude-code");
+    expect(efforts.map((e) => e.id)).toEqual(["low", "medium", "high", "max"]);
+  });
+
+  it("returns an empty list for a provider with no effort mechanism", () => {
+    expect(getAcpProviderEfforts("gemini-cli")).toEqual([]);
+    expect(getAcpProviderEfforts("codex")).toEqual([]);
+    expect(getAcpProviderEfforts(null)).toEqual([]);
+  });
+});
+
+describe("splitAcpModelEffort", () => {
+  const efforts = getAcpProviderEfforts("claude-code");
+
+  it("splits a combined id with a recognized effort suffix", () => {
+    expect(splitAcpModelEffort("sonnet/high", efforts)).toEqual({
+      baseModel: "sonnet",
+      effortId: "high",
+    });
+  });
+
+  it("leaves a bare model id unsplit", () => {
+    expect(splitAcpModelEffort("sonnet", efforts)).toEqual({
+      baseModel: "sonnet",
+      effortId: null,
+    });
+  });
+
+  it("leaves an unrecognized suffix unsplit", () => {
+    expect(splitAcpModelEffort("sonnet/ultrafast", efforts)).toEqual({
+      baseModel: "sonnet/ultrafast",
+      effortId: null,
+    });
+  });
+
+  it("handles null input", () => {
+    expect(splitAcpModelEffort(null, efforts)).toEqual({
+      baseModel: null,
+      effortId: null,
+    });
   });
 });

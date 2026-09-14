@@ -120,6 +120,72 @@ export interface ACPModelOption {
   label: string;
 }
 
+export interface ACPEffortOption {
+  /** Suffix appended to the base model id, e.g. ``"high"`` in ``"sonnet/high"``. */
+  id: string;
+  /** Human-readable label shown in the chat-input model picker. */
+  label: string;
+}
+
+/**
+ * Canvas-local curated reasoning-effort levels per ACP provider, for
+ * providers whose wrapper exposes a live ``effort``/``reasoning_effort``
+ * ``configOptions`` entry — see software-agent-sdk's
+ * ``_claude_model_config_options`` / ``_codex_model_config_options``, which
+ * split a combined ``"<model>/<effort>"`` id sent as ``acp_model``.
+ *
+ * Not sourced from the ``@openhands/typescript-client`` registry (unlike
+ * {@link ACPProviderConfig.available_models}) — that mirror doesn't carry
+ * effort levels yet. A value outside this list still works if typed directly
+ * into the free-text Settings -> Agent model field; this only powers the
+ * picker UI. Claude's real supported set is dynamic per model/account
+ * (``supportedEffortLevels`` reported by claude-agent-acp); this list is a
+ * curated superset for the picker, matching the SDK's own best-effort
+ * allowlist (``_CLAUDE_REASONING_EFFORTS``).
+ */
+const ACP_PROVIDER_EFFORTS: Record<string, ACPEffortOption[]> = {
+  "claude-code": [
+    { id: "low", label: "Low" },
+    { id: "medium", label: "Medium" },
+    { id: "high", label: "High" },
+    { id: "max", label: "Max" },
+  ],
+};
+
+/**
+ * List the curated effort levels for `providerKey`'s picker. Returns `[]`
+ * for a provider with no known effort-split mechanism (hides the picker
+ * section — see {@link ACP_PROVIDER_EFFORTS}).
+ */
+export function getAcpProviderEfforts(
+  key: string | null | undefined,
+): ACPEffortOption[] {
+  if (!key) return [];
+  return ACP_PROVIDER_EFFORTS[key] ?? [];
+}
+
+/**
+ * Split a combined ``"<model>/<effort>"`` id into its parts against a
+ * provider's known effort ids. Returns ``effortId: null`` when the id has no
+ * recognized effort suffix (a bare model id, or a suffix outside `efforts`)
+ * — mirrors the backend's best-effort split, so the picker never shows a
+ * false-positive effort selection for an id it can't actually control.
+ */
+export function splitAcpModelEffort(
+  modelId: string | null,
+  efforts: ACPEffortOption[],
+): { baseModel: string | null; effortId: string | null } {
+  if (!modelId) return { baseModel: modelId, effortId: null };
+  const idx = modelId.lastIndexOf("/");
+  if (idx <= 0) return { baseModel: modelId, effortId: null };
+  const base = modelId.slice(0, idx);
+  const suffix = modelId.slice(idx + 1);
+  if (efforts.some((option) => option.id === suffix)) {
+    return { baseModel: base, effortId: suffix };
+  }
+  return { baseModel: modelId, effortId: null };
+}
+
 // Canvas-only UI metadata per built-in provider, keyed by the ACP registry
 // key. Everything else — display name, launch command, model picker list and
 // default — comes from the typescript-client registry below. Adding a model

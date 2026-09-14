@@ -11,8 +11,11 @@ import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import {
   getAcpPreferredDefaultModel,
   getAcpProvider,
+  getAcpProviderEfforts,
   labelForAcpModel,
   resolveEffectiveAcpModel,
+  splitAcpModelEffort,
+  type ACPEffortOption,
   type ACPModelOption,
 } from "#/constants/acp-providers";
 
@@ -25,6 +28,17 @@ export interface ChatInputModelState {
   switchConversationId: string | null;
   destinationPath: AcpModelContext["destinationPath"];
   destinationLabel: string;
+  /** Curated effort levels for the active ACP provider (empty when the
+   * provider has no known effort-split mechanism — see
+   * `getAcpProviderEfforts`). */
+  availableAcpEfforts: ACPEffortOption[];
+  /** Whether the Effort section should render in the model popover. */
+  showEffortPicker: boolean;
+  /** `currentModelId` with any recognized `/<effort>` suffix stripped —
+   * the id an effort pick is composed onto. */
+  baseModelId: string | null;
+  /** The effort suffix of `currentModelId`, or `null` when unset/unrecognized. */
+  currentEffortId: string | null;
 }
 
 export function useChatInputModelState(): ChatInputModelState {
@@ -108,6 +122,15 @@ export function useChatInputModelState(): ChatInputModelState {
     ? (conversationId ?? null)
     : null;
 
+  const availableAcpEfforts = getAcpProviderEfforts(acpServerKey);
+  const { baseModel: baseModelId, effortId: currentEffortId } =
+    splitAcpModelEffort(currentModelId, availableAcpEfforts);
+  const showEffortPicker =
+    isAcpContext &&
+    availableAcpEfforts.length > 0 &&
+    canPersistHomeAcpModel &&
+    !!baseModelId;
+
   return {
     isAcpContext,
     displayModel,
@@ -117,5 +140,9 @@ export function useChatInputModelState(): ChatInputModelState {
     switchConversationId,
     destinationPath,
     destinationLabel,
+    availableAcpEfforts,
+    showEffortPicker,
+    baseModelId,
+    currentEffortId,
   };
 }
