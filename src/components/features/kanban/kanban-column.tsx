@@ -8,7 +8,7 @@ import { I18nKey } from "#/i18n/declaration";
 import type { KanbanColumnId, KanbanTask } from "#/types/kanban";
 import { KanbanCard } from "./kanban-card";
 
-const COLUMN_TITLE_KEY: Record<KanbanColumnId, I18nKey> = {
+const COLUMN_TITLE_KEY: Record<"todo" | "in_progress" | "done", I18nKey> = {
   todo: I18nKey.KANBAN$COLUMN_TODO,
   in_progress: I18nKey.KANBAN$COLUMN_IN_PROGRESS,
   done: I18nKey.KANBAN$COLUMN_DONE,
@@ -44,7 +44,7 @@ export function KanbanColumn({
       }`}
     >
       <h3 className="text-sm font-semibold text-white">
-        {t(COLUMN_TITLE_KEY[columnId])}
+        {t(COLUMN_TITLE_KEY[columnId as "todo" | "in_progress" | "done"])}
       </h3>
       <SortableContext
         items={sortedTasks.map((task) => task.id)}
