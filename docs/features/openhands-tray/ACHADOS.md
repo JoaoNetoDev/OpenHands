@@ -123,8 +123,9 @@ window.__AGENT_CANVAS_SESSION_API_KEY__ = "<64 caracteres>";
 | Está commitada? | **Não** — só no disco, fora do histórico |
 | Está no `.gitignore`? | **Não** — um `git add -A` commitiria |
 | A chave ainda vale? | **Não** — está obsoleta (o agent-server ativo usa outra de 44 chars) |
+| É acessível pela web? | **Não** — a produção responde **404** para esses arquivos |
 
-**Por que ainda importa:** está a um `git add -A` de entrar no histórico. Chave no histórico do git é difícil de remover (exige reescrever commits). Mesmo obsoleta, é lixo de credencial que não deveria estar no repo.
+**Por que ainda importa:** está a um `git add -A` de entrar no histórico. Chave no histórico do git é difícil de remover (exige reescrever commits). Mesmo obsoleta e mesmo sem exposição web, é lixo de credencial num diretório de **produção** (ver seção 5.4).
 
 **Ação recomendada:** apagar os 5 arquivos `.tmp-*.mjs` e adicionar `.tmp-*` ao `.gitignore`.
 
@@ -233,6 +234,31 @@ O branch deixou de ser "do tray" e virou um agregado de vários sprints. Ordem (
 - `.openhands/memory/` (memória do agente — meu)
 - Docs não rastreados: `docs/bugs/deploy-tela-branca-assets-404/`, `docs/features/claude-code-acp-reasoning-effort/`, `docs/features/deploy-agent-server-remotos/`
 
+### 5.4 ⚠️ `/opt/openhands` É PRODUÇÃO neste host
+
+Descoberta que muda a leitura de tudo acima. **Não é um checkout de desenvolvimento.**
+
+| Fato | Consequência |
+|---|---|
+| `openhands.service` serve de `/opt/openhands` (`bin/agent-canvas.mjs --public`) | Editar aqui afeta produção na hora |
+| O agent-server roda de pacote **PyPI pinado** via `uvx`, não deste repo | Corrigir o frontend aqui **não** corrige o backend |
+| Perfis ACP em `/root/.openhands/agent-profiles/*.json` são **persistentes** | Um `acp_model` ruim gravado ali quebra toda conversa nova daquele perfil |
+
+**Nunca reiniciar o serviço de dentro de uma sessão do Canvas:**
+
+```bash
+# NÃO FAÇA ISSO de dentro do Canvas:
+systemctl restart openhands.service
+```
+
+O agent-server que hospeda a conversa é filho dessa unit, e o `ExecStartPre` roda
+`fuser -k 18000/tcp 18001/tcp 3001/tcp` com `KillMode=control-group` — **mata o
+próprio agente no meio da tarefa**. Deixar o restart para o usuário.
+
+**Por que isso importa para os achados:** os 5 arquivos com credencial e os 14
+erros de lint estão num diretório **de produção**, não num ambiente descartável.
+Sobe a prioridade da limpeza.
+
 ---
 
 ## 6. Detalhes de ambiente que descobri
@@ -241,6 +267,8 @@ Coisas que não são óbvias e custam tempo para redescobrir.
 
 | Detalhe | Por que importa |
 |---|---|
+| **`/opt/openhands` é produção** (ver 5.4) | Não é ambiente descartável. Cuidado ao editar. |
+| **Várias sessões do agente usam este mesmo diretório** | Aparecem commits e arquivos de memória de outras tarefas no meio do seu trabalho. Commits surgem "do nada" em `git log`. |
 | `npm run lint` **não** cobre `scripts/` | Erros na pasta `scripts/` passam sem falhar CI. Rodar `npx eslint scripts/<arq>` na mão. |
 | Log do Tray fica em `~/.local/state/openhands-tray/log/tray.log` | Não é na raiz do repo nem ao lado do binário. |
 | Tray busca a chave em `~/.openhands/agent-canvas/session-api-key.txt` | **Esse arquivo não existe nesta máquina.** É criado na 1ª execução. |
@@ -257,7 +285,8 @@ Coisas que não são óbvias e custam tempo para redescobrir.
 
 ### 🔴 Fazer agora
 
-1. **Apagar os 5 `.tmp-*.mjs`** e pôr `.tmp-*` no `.gitignore` (seção 3.1)
+1. **Apagar os 5 `.tmp-*.mjs`** e pôr `.tmp-*` no `.gitignore` (seção 3.1) — estão
+   num diretório **de produção** e um deles carrega uma chave em texto puro
 2. **Corrigir os 14 erros de lint** de agent-profiles (seção 4.1)
 
 ### 🟡 Fazer em seguida
