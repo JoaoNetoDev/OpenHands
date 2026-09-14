@@ -30,12 +30,14 @@ vi.mock("#/utils/custom-toast-handlers", () => ({
 function makeTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
   return {
     id: "task-1",
+    boardId: "board-1",
     parentId: null,
     level: 1,
     title: "Task to sinterize",
     columnId: "todo",
     order: 0,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -47,7 +49,7 @@ describe("SinterizeButton", () => {
     displaySuccessToastMock.mockReset();
     displayErrorToastMock.mockReset();
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: {
+      tasksByBoardId: {
         [WORKSPACE_ID]: [makeTask()],
       },
       lastPersistFailed: false,
@@ -118,8 +120,7 @@ describe("SinterizeButton", () => {
       expect(sinterizeTaskMock).toHaveBeenCalledWith(WORKSPACE_PATH, task);
     });
     await waitFor(() => {
-      const tasks =
-        useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID];
+      const tasks = useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID];
       expect(tasks[0].lastSinteredAt).toBeDefined();
     });
     expect(displaySuccessToastMock).toHaveBeenCalled();
@@ -149,8 +150,7 @@ describe("SinterizeButton", () => {
         "Falha ao gravar o arquivo .md",
       );
     });
-    const tasks =
-      useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID];
+    const tasks = useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID];
     expect(tasks[0].lastSinteredAt).toBeUndefined();
     expect(displaySuccessToastMock).not.toHaveBeenCalled();
   });

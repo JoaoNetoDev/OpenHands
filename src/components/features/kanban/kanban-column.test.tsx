@@ -12,12 +12,14 @@ const WORKSPACE_ID = "workspace-1";
 function makeTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
   return {
     id: "task-1",
+    boardId: "board-1",
     parentId: null,
     level: 1,
     title: "Task 1",
     columnId: "todo",
     order: 0,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -25,7 +27,7 @@ function makeTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
 describe("KanbanColumn", () => {
   beforeEach(() => {
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: {},
+      tasksByBoardId: {},
       lastPersistFailed: false,
     });
   });

@@ -24,12 +24,14 @@ vi.mock("#/utils/custom-toast-handlers", () => ({
 function makeTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
   return {
     id: "task-1",
+    boardId: "board-1",
     parentId: null,
     level: 1,
     title: "Task 1",
     columnId: "featdevelop_todo",
     order: 0,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     featureSlug: "my-feature",
     ...overrides,
   };
@@ -40,7 +42,7 @@ describe("RunAgentButton", () => {
     startFeatdevelopConversationMock.mockReset();
     displayErrorToastMock.mockReset();
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: { [WORKSPACE_ID]: [makeTask()] },
+      tasksByBoardId: { [WORKSPACE_ID]: [makeTask()] },
       lastPersistFailed: false,
     });
   });
@@ -86,13 +88,12 @@ describe("RunAgentButton", () => {
 
     await user.click(screen.getByTestId("kanban-run-agent-button"));
     await waitFor(() => {
-      const tasks =
-        useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID];
+      const tasks = useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID];
       expect(tasks[0].linkedConversationId).toBe("conv-1");
     });
 
     const updatedTask =
-      useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID][0];
+      useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID][0];
     rerender(
       <RunAgentButton
         workspaceId={WORKSPACE_ID}
@@ -103,8 +104,7 @@ describe("RunAgentButton", () => {
 
     await user.click(screen.getByTestId("kanban-run-agent-button"));
     await waitFor(() => {
-      const tasks =
-        useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID];
+      const tasks = useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID];
       expect(tasks[0].linkedConversationId).toBe("conv-2");
     });
 
@@ -146,8 +146,7 @@ describe("RunAgentButton", () => {
         "Falha ao iniciar conversa",
       );
     });
-    const tasks =
-      useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID];
+    const tasks = useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID];
     expect(tasks[0].linkedConversationId).toBeUndefined();
   });
 });

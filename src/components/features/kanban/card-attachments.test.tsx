@@ -11,12 +11,14 @@ const WORKSPACE_ID = "workspace-1";
 function makeTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
   return {
     id: "task-1",
+    boardId: "board-1",
     parentId: null,
     level: 1,
     title: "Task with attachments",
     columnId: "todo",
     order: 0,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -29,7 +31,7 @@ function makeFile(name: string, sizeBytes: number): File {
 describe("CardAttachments", () => {
   beforeEach(() => {
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: {
+      tasksByBoardId: {
         [WORKSPACE_ID]: [makeTask()],
       },
       lastPersistFailed: false,
@@ -50,8 +52,7 @@ describe("CardAttachments", () => {
     await user.upload(input, tooLarge);
 
     await waitFor(() => {
-      const tasks =
-        useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID];
+      const tasks = useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID];
       expect(tasks[0].attachments ?? []).toHaveLength(0);
     });
     expect(
@@ -73,8 +74,7 @@ describe("CardAttachments", () => {
     await user.upload(input, okFile);
 
     await waitFor(() => {
-      const tasks =
-        useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID];
+      const tasks = useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID];
       expect(tasks[0].attachments ?? []).toHaveLength(1);
       expect(tasks[0].attachments?.[0].fileName).toBe("small.txt");
       expect(tasks[0].attachments?.[0].sizeBytes).toBe(100 * 1024);
@@ -95,8 +95,7 @@ describe("CardAttachments", () => {
     await user.upload(input, badName);
 
     await waitFor(() => {
-      const tasks =
-        useKanbanBoardStore.getState().tasksByWorkspaceId[WORKSPACE_ID];
+      const tasks = useKanbanBoardStore.getState().tasksByBoardId[WORKSPACE_ID];
       expect(tasks[0].attachments ?? []).toHaveLength(0);
     });
   });

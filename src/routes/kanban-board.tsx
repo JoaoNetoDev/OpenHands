@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useParams } from "react-router";
 import {
   DndContext,
   KeyboardSensor,
@@ -10,7 +11,6 @@ import {
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import { useSystemSettings } from "#/hooks/use-system-settings";
 import { useKanbanBoardStore } from "#/stores/kanban-board-store";
 import type { KanbanColumnId, KanbanTask } from "#/types/kanban";
 import { KanbanColumn } from "#/components/features/kanban/kanban-column";
@@ -20,27 +20,26 @@ import { KanbanTaskDrawer } from "#/components/features/kanban/kanban-task-drawe
 import { BrandButton } from "#/components/features/settings/brand-button";
 
 // Stable reference so the Zustand selector below doesn't return a fresh
-// array on every call when the workspace has no tasks yet — a fresh `[]`
+// array on every call when the board has no tasks yet — a fresh `[]`
 // literal each render defeats `useSyncExternalStore`'s reference equality
 // check and causes an infinite render loop ("getSnapshot should be cached").
 const EMPTY_TASKS: KanbanTask[] = [];
 
 /**
- * `/board` route: renders the level-1 kanban board for the active
- * workspace (SPEC §2.4). The active workspace is resolved from
- * `useSystemSettings().settings.defaultWorkspaceId` (TECH §1) — when it is
- * absent, the board shows the "no active workspace" state (SPEC §4)
- * instead of the regular "no tasks yet" empty state (RF-10 / CA-01).
+ * `/board/:boardId` route: renders the level-1 kanban board for a single
+ * board (SPEC §2.4 / TECH §2.4). `boardId` is resolved from the URL
+ * (`useParams`) instead of the active workspace directly — the component's
+ * internal shape is unchanged, only the key used to query the store moved
+ * from `workspaceId` to `boardId`. When the param is absent, the board
+ * shows a "board not found" state instead of the regular "no tasks yet"
+ * empty state.
  */
 export default function KanbanBoardRoute() {
   const { t } = useTranslation("openhands");
-  const { settings } = useSystemSettings();
-  const workspaceId = settings.defaultWorkspaceId;
+  const { boardId } = useParams<{ boardId: string }>();
 
   const allTasks = useKanbanBoardStore((state) =>
-    workspaceId
-      ? (state.tasksByWorkspaceId[workspaceId] ?? EMPTY_TASKS)
-      : EMPTY_TASKS,
+    boardId ? (state.tasksByBoardId[boardId] ?? EMPTY_TASKS) : EMPTY_TASKS,
   );
   const moveTask = useKanbanBoardStore((state) => state.moveTask);
 
@@ -74,17 +73,17 @@ export default function KanbanBoardRoute() {
   });
   const columns = Array.from(columnsById, ([id, label]) => ({ id, label }));
 
-  if (!workspaceId) {
+  if (!boardId) {
     return (
       <div
-        data-testid="kanban-board-no-workspace"
+        data-testid="kanban-board-not-found"
         className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center"
       >
         <h1 className="text-lg font-semibold text-white">
-          {t(I18nKey.KANBAN$NO_WORKSPACE_TITLE)}
+          {t(I18nKey.KANBAN$BOARD_NOT_FOUND_TITLE)}
         </h1>
         <p className="text-sm text-muted max-w-md">
-          {t(I18nKey.KANBAN$NO_WORKSPACE_DESCRIPTION)}
+          {t(I18nKey.KANBAN$BOARD_NOT_FOUND_DESCRIPTION)}
         </p>
       </div>
     );
@@ -97,7 +96,7 @@ export default function KanbanBoardRoute() {
     const destSiblings = level1Tasks.filter(
       (task) => task.columnId === toColumnId && task.id !== active.id,
     );
-    moveTask(workspaceId, active.id as string, toColumnId, destSiblings.length);
+    moveTask(boardId, active.id as string, toColumnId, destSiblings.length);
   };
 
   return (
@@ -128,7 +127,7 @@ export default function KanbanBoardRoute() {
             {columns.map(({ id: columnId, label }) => (
               <KanbanColumn
                 key={columnId}
-                workspaceId={workspaceId}
+                workspaceId={boardId}
                 columnId={columnId}
                 label={label}
                 tasks={level1Tasks.filter((task) => task.columnId === columnId)}
@@ -158,14 +157,14 @@ export default function KanbanBoardRoute() {
 
       {createModalOpen && (
         <CreateTaskModal
-          workspaceId={workspaceId}
+          workspaceId={boardId}
           parentId={null}
           onClose={() => setCreateModalOpen(false)}
         />
       )}
       {openTask && (
         <KanbanTaskDrawer
-          workspaceId={workspaceId}
+          workspaceId={boardId}
           task={openTask}
           onClose={() => setOpenTask(null)}
         />

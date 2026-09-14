@@ -53,7 +53,7 @@ export function KanbanTaskDrawer({
 }: KanbanTaskDrawerProps) {
   const { t } = useTranslation("openhands");
   const children = useKanbanBoardStore(
-    (state) => state.tasksByWorkspaceId[workspaceId] ?? EMPTY_TASKS,
+    (state) => state.tasksByBoardId[workspaceId] ?? EMPTY_TASKS,
   ).filter((c) => c.parentId === task.id);
   const updateTask = useKanbanBoardStore((state) => state.updateTask);
   const moveTask = useKanbanBoardStore((state) => state.moveTask);

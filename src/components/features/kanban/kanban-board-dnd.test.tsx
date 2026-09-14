@@ -13,12 +13,14 @@ const EMPTY_TASKS: KanbanTask[] = [];
 function makeTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
   return {
     id: "task-1",
+    boardId: "board-1",
     parentId: null,
     level: 1,
     title: "Task",
     columnId: "todo",
     order: 0,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -31,7 +33,7 @@ function makeTask(overrides: Partial<KanbanTask> = {}): KanbanTask {
  */
 function TestBoard() {
   const tasks = useKanbanBoardStore(
-    (state) => state.tasksByWorkspaceId[WORKSPACE_ID] ?? EMPTY_TASKS,
+    (state) => state.tasksByBoardId[WORKSPACE_ID] ?? EMPTY_TASKS,
   );
   const moveTask = useKanbanBoardStore((state) => state.moveTask);
 
@@ -65,7 +67,7 @@ function TestBoard() {
 describe("kanban drag-and-drop -> moveTask wiring", () => {
   beforeEach(() => {
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: {},
+      tasksByBoardId: {},
       lastPersistFailed: false,
     });
   });
@@ -73,7 +75,7 @@ describe("kanban drag-and-drop -> moveTask wiring", () => {
   it("moves a card to a different column via the store when a drag ends over it", () => {
     const task = makeTask({ id: "task-1", columnId: "todo" });
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: { [WORKSPACE_ID]: [task] },
+      tasksByBoardId: { [WORKSPACE_ID]: [task] },
       lastPersistFailed: false,
     });
 
@@ -90,14 +92,14 @@ describe("kanban drag-and-drop -> moveTask wiring", () => {
 
     const moved = useKanbanBoardStore
       .getState()
-      .tasksByWorkspaceId[WORKSPACE_ID].find((t) => t.id === "task-1");
+      .tasksByBoardId[WORKSPACE_ID].find((t) => t.id === "task-1");
     expect(moved?.columnId).toBe("in_progress");
   });
 
   it("re-renders the card under the destination column after the move", () => {
     const task = makeTask({ id: "task-1", columnId: "todo" });
     useKanbanBoardStore.setState({
-      tasksByWorkspaceId: { [WORKSPACE_ID]: [task] },
+      tasksByBoardId: { [WORKSPACE_ID]: [task] },
       lastPersistFailed: false,
     });
 
