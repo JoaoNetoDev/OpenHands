@@ -1,6 +1,7 @@
 # Project Memory — OpenHands/OpenHands (agent-canvas)
 
 See also `AGENTS.md` (repo instructions) and the daily logs in this directory.
+Sprint 03 / the tray UI detail lives in `2026-09-12.md`.
 
 ## OpenHands Tray (Canvas-on-VPS ↔ local agent-server)
 
@@ -10,10 +11,20 @@ See also `AGENTS.md` (repo instructions) and the daily logs in this directory.
 - The Go Tray lives in a **sibling repo**, not here: `/opt/openhands-tray`
   (module `github.com/JoaoNetoDev/openhands-tray`). `AGENTS.md` forbids Go in
   this repo (RISCO-01).
+- **The tray UI exists as of Sprint 03** (Wails v3.0.0-beta.21). A bare run
+  opens the settings window; any connection flag or `-headless` still runs the
+  CLI. Both modes drive one lifecycle in `internal/desktop/controller.go` -- do
+  not add a second startup path in `main.go`.
+- **The GUI cannot be cross-compiled** (cgo -> GTK4/WebKitGTK 6.0), so the repo
+  builds two artifacts: `make build` (GUI, host, cgo) and `make build-headless`
+  (static, 5 platforms). Build tags are `gui` / `!gui`. Never export a global
+  `CGO_ENABLED=0` in that Makefile -- it silently removes the GUI and breaks
+  `-race`.
 - VPS side is `scripts/agent-tunnel.mjs` (terminal WSS bridge) wired into
   `scripts/ingress.mjs` as **opt-in** via `--agent-tunnel-token` /
   `INGRESS_AGENT_TUNNEL_TOKEN`. Default ingress behavior is unchanged when no
-  token is set.
+  token is set. **It is still not enabled in production**, which is the last
+  open blocker from `ACHADOS.md` section 9.
 - `--agent-tunnel-route` is **repeatable** and in practice must be: the
   agent-server serves `/server_info` at the **root** and everything else under
   `/api`. Tunnel-backed routes are matched *before* ingress's local
