@@ -46,4 +46,16 @@ export default [
     "shared/conversations/:conversationId",
     "routes/shared-conversation.tsx",
   ),
+  // AIK (SPRINT-02, SPEC §2.1 fallback path — the `<Routes>` imperative
+  // spike was rejected by the validator because `clientLoader` only runs
+  // under file-routes/data-router, not inside `<Routes>` mounted by hand).
+  // Same file-routes tree as the Agent Canvas above, so every AIK route
+  // gets loader/typegen support for free, at the cost of a visible
+  // `/__aik` prefix in the URL. `routes/index-home.tsx`'s `clientLoader`
+  // redirects here when `window.location.hostname` is an AIK vhost.
+  route("__aik", "routes/aik/aik-layout.tsx", [
+    index("routes/aik/aik-systems-board.tsx"),
+    route(":systemId", "routes/aik/aik-phases-board.tsx"),
+    route(":systemId/fases/:phaseId", "routes/aik/aik-tasks-board.tsx"),
+  ]),
 ] satisfies RouteConfig;
