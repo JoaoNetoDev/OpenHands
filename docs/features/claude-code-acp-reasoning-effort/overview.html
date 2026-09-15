@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reasoning effort para Claude Code (ACP) — Visão executiva</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #5a5a5a; --card: #f6f6f8;
+    --accent: #6b46c1; --border: #e2e2e6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14141a; --fg: #eaeaf0; --muted: #a3a3ad; --card: #1e1e26; --border: #303038; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--fg); margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 48px 24px 80px; }
+  h1 { font-size: 1.7rem; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); margin-top: 0; margin-bottom: 40px; }
+  h2 { font-size: 1.15rem; margin-top: 40px; border-left: 4px solid var(--accent); padding-left: 12px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; margin: 16px 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+  ul { padding-left: 20px; }
+  li { margin-bottom: 8px; }
+  .tag { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 3px 10px;
+    border-radius: 999px; background: var(--accent); color: white; margin-right: 6px; }
+  .timeline { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+  .timeline-item { display: flex; gap: 14px; align-items: flex-start; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); margin-top: 6px; flex-shrink: 0; }
+  .muted { color: var(--muted); font-size: 0.92rem; }
+  code { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 0.9em; }
+  footer { margin-top: 56px; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Reasoning effort para Claude Code no OpenHands</h1>
+  <p class="subtitle">Visão executiva — sem jargão técnico</p>
+
+  <h2>O problema</h2>
+  <div class="card">
+    <p>No Agent Canvas (OpenHands), já existe um botão para ajustar o "esforço de raciocínio"
+    (quão a fundo o modelo pensa antes de responder) durante uma conversa. Esse botão funciona
+    para alguns agentes de IA, mas <strong>não funciona quando a conversa está usando o Claude
+    Code</strong> — mesmo o Claude Code já sendo capaz de receber esse ajuste, essa capacidade
+    simplesmente não está conectada no OpenHands.</p>
+  </div>
+
+  <h2>O que será entregue</h2>
+  <div class="card">
+    <ul>
+      <li>Quando alguém configurar a conversa para usar Claude Code com um nível de esforço
+      específico (baixo, médio, alto ou máximo), essa escolha passa a ser realmente aplicada.</li>
+      <li>Nenhuma tela nova é necessária — o mecanismo já existente é reaproveitado.</li>
+      <li>Nenhum outro agente (Codex, Gemini, etc.) é afetado.</li>
+    </ul>
+  </div>
+
+  <h2>Onda e sprint</h2>
+  <div class="timeline">
+    <div class="timeline-item">
+      <div class="dot"></div>
+      <div>
+        <strong>Onda 1 — Sprint única</strong>
+        <div class="muted">Mudança concentrada em um único arquivo do "motor" que conecta o
+        OpenHands ao Claude Code. Baixa complexidade: o mesmo mecanismo já existe e funciona
+        para outro agente (Codex) — aqui só se estende o mesmo caminho para o Claude Code, com o
+        nome de configuração correto que o Claude Code espera.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Riscos</h2>
+  <div class="card">
+    <ul>
+      <li><span class="tag">Baixo</span> Os níveis de esforço aceitos pelo Claude Code podem
+      variar por modelo/conta — se alguém pedir um nível que aquele modelo específico não aceita,
+      o pedido é simplesmente ignorado (sem quebrar a conversa).</li>
+    </ul>
+  </div>
+
+  <h2>O que fica de fora</h2>
+  <div class="card">
+    <ul>
+      <li>Não inclui os modos avançados de outro produto usado como referência
+      (LionCode) que reescrevem o pedido do usuário para forçar mais raciocínio — só o ajuste
+      "puro" de esforço.</li>
+      <li>Não inclui nenhuma mudança na tela do Agent Canvas — o botão já existe.</li>
+      <li>Não inclui suporte no backend Cloud (o botão já é restrito a conexões locais/próprias).</li>
+    </ul>
+  </div>
+
+  <footer>
+    Documentos completos: PRD.md, TECH.md, SPEC.md, sprints/SPRINT-01.md — nesta mesma pasta.
+  </footer>
+</div>
+</body>
+</html>
