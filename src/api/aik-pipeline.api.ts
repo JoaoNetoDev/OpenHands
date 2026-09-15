@@ -1,6 +1,6 @@
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import type { AikPhase, AikSystem, AikTask } from "#/types/aik";
-import type { Provider } from "#/types/settings";
+import { ProviderOptions, type Provider } from "#/types/settings";
 
 /**
  * Builds the initial user message sent to the agent for a given AIK task
@@ -76,6 +76,13 @@ export async function startAikAgentTask(
   { ok: true; conversationId: string } | { ok: false; error: string }
 > {
   try {
+    if (
+      system.workspaceRef.kind === "cloud" &&
+      !(system.workspaceRef.repository.provider in ProviderOptions)
+    ) {
+      return { ok: false, error: "invalid_git_provider" };
+    }
+
     const initialUserMsg = buildAikAgentBriefing(task, phase, system, "");
 
     const result = await AgentServerConversationService.createConversation(

@@ -246,6 +246,54 @@ describe("buildAikAgentBriefing", () => {
       messageWithSmallSystem.length,
     );
   });
+
+  it("SPEC §2.5: emits all sections in the exact order — skill, title, description, phase/system, checklist, contextText, file contract", () => {
+    const message = buildAikAgentBriefing(
+      buildTask({
+        agentSkill: "featdevelop",
+        title: "Corrigir bug X",
+        description: "Detalhes da tarefa",
+        id: "task-abc",
+        linkedConversationId: "conversation-1",
+        checklist: [{ id: "c1", text: "Item pendente", done: false }],
+      }),
+      buildPhase({ title: "Fase de testes" }),
+      buildSystem({ name: "Sistema de Pagamentos" }),
+      "contexto adicional digitado pelo usuário",
+    );
+
+    const skillIdx = message.indexOf("Use a skill");
+    const titleIdx = message.indexOf('Tarefa: "Corrigir bug X"');
+    const descriptionIdx = message.indexOf("Detalhes da tarefa");
+    const phaseIdx = message.indexOf('Fase: "Fase de testes"');
+    const systemIdx = message.indexOf('Sistema: "Sistema de Pagamentos"');
+    const checklistIdx = message.indexOf("Itens pendentes do checklist:");
+    const contextTextIdx = message.indexOf(
+      "contexto adicional digitado pelo usuário",
+    );
+    const fileContractIdx = message.indexOf(".openhands/aik/system.json");
+
+    for (const idx of [
+      skillIdx,
+      titleIdx,
+      descriptionIdx,
+      phaseIdx,
+      systemIdx,
+      checklistIdx,
+      contextTextIdx,
+      fileContractIdx,
+    ]) {
+      expect(idx).toBeGreaterThanOrEqual(0);
+    }
+
+    expect(skillIdx).toBeLessThan(titleIdx);
+    expect(titleIdx).toBeLessThan(descriptionIdx);
+    expect(descriptionIdx).toBeLessThan(phaseIdx);
+    expect(phaseIdx).toBeLessThan(systemIdx);
+    expect(systemIdx).toBeLessThan(checklistIdx);
+    expect(checklistIdx).toBeLessThan(contextTextIdx);
+    expect(contextTextIdx).toBeLessThan(fileContractIdx);
+  });
 });
 
 describe("startAikAgentTask", () => {
@@ -346,6 +394,20 @@ describe("startAikAgentTask", () => {
     if (!result.ok) {
       expect(result.error).toBeTruthy();
     }
+  });
+
+  it("F-04-2: returns ok:false without calling createConversation when repository.provider is not a valid Provider", async () => {
+    const system = buildSystem({
+      workspaceRef: {
+        kind: "cloud",
+        repository: { provider: "not-a-real-provider", fullName: "org/repo" },
+      },
+    });
+
+    const result = await startAikAgentTask(system, buildPhase(), buildTask());
+
+    expect(result).toEqual({ ok: false, error: "invalid_git_provider" });
+    expect(createConversationMock).not.toHaveBeenCalled();
   });
 
   it("does not touch any store — the returned promise carries the sole result, no side effects on system/task objects", async () => {
