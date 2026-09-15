@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Deploy do agent-server remoto — visão executiva</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --text: #1c1c1c; --muted: #63645f;
+    --accent: #b5490e; --accent-bg: #fdece0; --border: #e4e2dc;
+    --ok: #2a6b3f; --ok-bg: #e7f3ea; --risk: #8a5a00; --risk-bg: #fdf1da;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17181a; --card: #1f2023; --text: #ecece9; --muted: #9a9a94;
+      --accent: #e07a45; --accent-bg: #3a2416; --border: #333437;
+      --ok: #7fce97; --ok-bg: #16281d; --risk: #e0b34a; --risk-bg: #2e2510;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17181a; --card: #1f2023; --text: #ecece9; --muted: #9a9a94;
+    --accent: #e07a45; --accent-bg: #3a2416; --border: #333437;
+    --ok: #7fce97; --ok-bg: #16281d; --risk: #e0b34a; --risk-bg: #2e2510;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 48px 24px 80px; }
+  h1 { font-size: 1.7rem; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 36px; font-size: 1rem; }
+  h2 { font-size: 1.15rem; margin: 44px 0 14px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  p { line-height: 1.6; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px 22px; margin-bottom: 14px; }
+  .problem { border-left: 4px solid var(--accent); }
+  .timeline { display: flex; flex-direction: column; gap: 10px; }
+  .wave { display: grid; grid-template-columns: 90px 1fr; gap: 16px; align-items: start; }
+  .wave-badge { background: var(--accent-bg); color: var(--accent); font-weight: 600; font-size: .8rem; padding: 6px 10px; border-radius: 20px; text-align: center; white-space: nowrap; }
+  .wave-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; }
+  .wave-card h3 { margin: 0 0 4px; font-size: 1rem; }
+  .wave-card p { margin: 0; color: var(--muted); font-size: .92rem; }
+  .dep { display: inline-block; margin-top: 8px; font-size: .8rem; color: var(--muted); }
+  ul.plain { padding-left: 20px; line-height: 1.7; }
+  .risk-box { background: var(--risk-bg); color: var(--risk); border-radius: 10px; padding: 16px 20px; font-size: .93rem; }
+  .out-box { background: var(--card); border: 1px dashed var(--border); border-radius: 10px; padding: 16px 20px; color: var(--muted); font-size: .93rem; }
+  .fixed-box { background: var(--ok-bg); color: var(--ok); border-radius: 10px; padding: 14px 20px; font-size: .9rem; margin-top: 10px; }
+  footer { margin-top: 56px; color: var(--muted); font-size: .8rem; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Deploy do agent-server remoto</h1>
+  <p class="sub">aqdata · lebi · f5 — visão executiva do plano aprovado</p>
+
+  <h2>O problema</h2>
+  <div class="card problem">
+    <p>Hoje, para atualizar o backend do OpenHands (<code>agent-server</code>) nos três servidores remotos, é preciso entrar manualmente em cada máquina, editar um arquivo de configuração à mão e reiniciar o serviço — sem checagem automática de que tudo voltou a funcionar, e sem um jeito rápido de desfazer se algo der errado. As ferramentas que já existiam para "atualizar automaticamente" foram construídas para um outro modelo de servidor, que nenhum dos três hosts remotos usa — por isso elas simplesmente não funcionam neles hoje.</p>
+  </div>
+
+  <h2>O que vai ser entregue</h2>
+  <div class="card">
+    <p>Uma ferramenta de linha de comando (<code>agent-server-remotes.sh</code>) que:</p>
+    <ul class="plain">
+      <li>mostra em segundos o estado atual dos três servidores;</li>
+      <li>troca a versão do backend com um único comando, nos três de uma vez ou só num deles;</li>
+      <li>confirma sozinha, depois de cada troca, que o serviço voltou a responder normalmente;</li>
+      <li>se algo não responder, desfaz a mudança automaticamente, sem precisar de intervenção manual;</li>
+      <li>também permite desfazer manualmente uma mudança anterior, a qualquer momento.</li>
+    </ul>
+  </div>
+
+  <h2>Linha do tempo — ondas e sprints</h2>
+  <div class="timeline">
+    <div class="wave">
+      <div class="wave-badge">Onda 1</div>
+      <div class="wave-card">
+        <h3>SPRINT-01 — Base</h3>
+        <p>Organiza os arquivos de apoio: lista dos três servidores e a peça de comunicação já usada por outra ferramenta existente, reaproveitada em vez de duplicada.</p>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="wave-badge">Onda 2</div>
+      <div class="wave-card">
+        <h3>SPRINT-02 — Consulta de estado</h3>
+        <p>Constrói a parte que só lê informação dos três servidores (nunca altera nada) — inclui o comando que mostra rapidamente o que cada um está rodando agora.</p>
+        <span class="dep">depende da SPRINT-01</span>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="wave-badge">Onda 3</div>
+      <div class="wave-card">
+        <h3>SPRINT-03 — Atualização e reversão</h3>
+        <p>Constrói a parte que efetivamente troca a versão, cria uma cópia de segurança antes de qualquer mudança, reinicia o serviço, e confirma a saúde depois.</p>
+        <span class="dep">depende da SPRINT-02</span>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="wave-badge">Onda 4</div>
+      <div class="wave-card">
+        <h3>SPRINT-04 — Prova real</h3>
+        <p>Testa contra um dos servidores de verdade: provoca uma falha de propósito e confirma que a ferramenta se recupera sozinha, sem intervenção manual.</p>
+        <span class="dep">depende da SPRINT-03</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>Riscos</h2>
+  <div class="risk-box">
+    Não existe um ambiente de teste separado para esses três servidores — a prova final (Onda 4) acontece contra a infraestrutura real, num só servidor por vez, sob acompanhamento. É por isso que a reversão automática em caso de falha é o critério mais importante de toda a entrega, não um extra.
+  </div>
+  <div class="fixed-box">
+    ✓ Um erro real cometido durante o planejamento desta feature — apontar a atualização para o repositório errado, que derrubou os três servidores por cerca de 1-2 minutos — já foi identificado, corrigido e usado como base do teste mais importante da Onda 4, para garantir que não se repita.
+  </div>
+
+  <h2>O que fica de fora desta entrega</h2>
+  <div class="out-box">
+    Atualização do frontend/Canvas (resolvida por outro processo já existente), atualização das ferramentas extras já versionadas em Git (já funciona hoje), agendamento automático de atualizações, e adição automática de novos servidores à lista.
+  </div>
+
+  <footer>Gerado pelo pipeline /featdevelop — docs/features/deploy-agent-server-remotos/</footer>
+</div>
+</body>
+</html>
