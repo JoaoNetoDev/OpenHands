@@ -14,6 +14,10 @@ const path = require('path');
 // only when the English value is genuinely correct for all languages.
 const IDENTICAL_VALUE_ALLOWLIST = new Set([
   'ACTION_MESSAGE$ACP_TOOL',
+  'AIK$TASK_PRIORITY_P0',
+  'AIK$TASK_PRIORITY_P1',
+  'AIK$TASK_PRIORITY_P2',
+  'AIK$TASK_PRIORITY_P3',
   'API$TAVILY_KEY_EXAMPLE',
   'API$TVLY_KEY_EXAMPLE',
   'AUTOMATIONS$DOWNLOAD_TARBALL',
