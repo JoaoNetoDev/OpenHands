@@ -568,6 +568,16 @@ function setStaticHeaders(res, pathname) {
 
 function createStaticMiddleware(dirAbs) {
   return sirv(dirAbs, {
+    // `dev: true` makes sirv stat the filesystem per request instead of
+    // caching the file listing once at startup. Without it, any asset written
+    // by a `npm run build` that runs *after* this process started is invisible
+    // (404) until the service restarts — even though the file is on disk. That
+    // produced repeated blank-screen outages in production
+    // (docs/bugs/deploy-tela-branca-assets-404/FICHA.md, "Ressurgência").
+    // It does not weaken caching: sirv's dev path sets Cache-Control
+    // no-cache/no-store, but `send()` lets headers already set on `res` win, so
+    // the `immutable` header that `setStaticHeaders` puts on /assets/* survives.
+    dev: true,
     etag: true,
     single: false,
     setHeaders: setStaticHeaders,
