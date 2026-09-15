@@ -1,49 +1,8 @@
-import {
-  type RouteConfig,
-  layout,
-  index,
-  route,
-} from "@react-router/dev/routes";
+import { type RouteConfig, route } from "@react-router/dev/routes";
 
-export default [
-  layout("routes/root-layout.tsx", [
-    index("routes/index-home.tsx"),
-    route("conversations", "routes/home.tsx"),
-    route(
-      "conversations/:conversationId/panel",
-      "routes/conversation-panel.tsx",
-    ),
-    route("conversations/:conversationId", "routes/conversation.tsx"),
-    route("launch", "routes/launch.tsx"),
-    route("board", "routes/board-list.tsx"),
-    route("board/:boardId", "routes/kanban-board.tsx"),
-    route("customize", "routes/extensions-hub.tsx"),
-    route("skills", "routes/skills-settings.tsx"),
-    route("plugins", "routes/skills-plugins.tsx"),
-    route("apps", "routes/canvas-extensions.tsx"),
-    route("extensions/:extensionName/*", "routes/canvas-extension-page.tsx"),
-    route("mcp", "routes/mcp.tsx"),
-    route("settings", "routes/settings.tsx", [
-      index("routes/settings-index.tsx"),
-      route("llm", "routes/llm-settings.tsx"),
-      route("agent", "routes/agent-settings.tsx"),
-      route("agents", "routes/agent-profiles-settings.tsx"),
-      route("condenser", "routes/condenser-settings.tsx"),
-      route("agent-context", "routes/agent-context-settings.tsx"),
-      route("system", "routes/system-settings.tsx"),
-      route("verification", "routes/verification-settings.tsx"),
-      route("app", "routes/app-settings.tsx"),
-      route("secrets", "routes/secrets-settings.tsx"),
-    ]),
-    route("oauth/device/verify", "routes/device-verify.tsx"),
-    route("automations", "routes/automations-list.tsx"),
-    route("automations/git-sync", "routes/automation-git-sync.tsx"),
-    route("automations/templates", "routes/automation-templates.tsx"),
-    route("automations/new/:automationId", "routes/automation-setup-route.tsx"),
-    route("automations/:automationId", "routes/automation-detail.tsx"),
-  ]),
-  route(
-    "shared/conversations/:conversationId",
-    "routes/shared-conversation.tsx",
-  ),
-] satisfies RouteConfig;
+// The full Agent Canvas tree that used to live here has moved, unchanged,
+// to `src/routes/agent-canvas-app.tsx`. A single splat route now defers to
+// `host-gate.tsx`, which decides at runtime (by `window.location.hostname`)
+// between the Agent Canvas app and the AIK app — no URL prefix, no proxy
+// path rewrite (TECH §2.1, SPEC §2.1, SPRINT-02).
+export default [route("*", "routes/host-gate.tsx")] satisfies RouteConfig;

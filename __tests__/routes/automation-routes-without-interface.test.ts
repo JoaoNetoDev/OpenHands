@@ -38,7 +38,7 @@ describe("the automation routes without an admitted interface manifest", () => {
       setup: statusOfLoader(() =>
         setup.clientLoader({
           params: { automationId: "github-pr-reviewer" },
-        } as Parameters<typeof setup.clientLoader>[0]),
+        } as unknown as Parameters<typeof setup.clientLoader>[0]),
       ),
       templates: statusOfLoader(() => templates.clientLoader()),
     }).toEqual({ list: 404, detail: 404, setup: 404, templates: 404 });

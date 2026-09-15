@@ -1,7 +1,12 @@
 import { useMemo, useState } from "react";
-import { Outlet, redirect, useLocation, useMatches } from "react-router";
+import {
+  Outlet,
+  redirect,
+  useLocation,
+  useMatches,
+  type ClientLoaderFunctionArgs,
+} from "react-router";
 import { useTranslation } from "react-i18next";
-import { Route } from "./+types/settings";
 import OptionService from "#/api/option-service/option-service.api";
 import { queryClient } from "#/query-client-config";
 import { SettingsLayout } from "#/components/features/settings";
@@ -17,7 +22,16 @@ import {
 } from "#/utils/settings-utils";
 import { SettingsSectionHeaderProvider } from "#/contexts/settings-section-header-context";
 
-export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
+// `Route.ClientLoaderArgs` used to come from `./+types/settings`, generated
+// by react-router typegen from this file's entry in `routes.ts`. SPRINT-02
+// moved that entry into `agent-canvas-app.tsx`'s imperative `<Routes>` tree
+// (TECH §2.1), so `routes.ts` no longer declares this route and the
+// generated module no longer exists. This clientLoader is not invoked by
+// `<Routes>` mounted imperatively (only the file-routes data router runs
+// `clientLoader`s) — it is effectively dead code post-move, kept as-is
+// (content unchanged) except for this type import, which is swapped for
+// the underlying react-router type so the file still typechecks.
+export const clientLoader = async ({ request }: ClientLoaderFunctionArgs) => {
   const url = new URL(request.url);
   const { pathname } = url;
 
