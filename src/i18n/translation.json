@@ -44164,5 +44164,22 @@
     "de": "Rückmeldung zur Überprüfung",
     "uk": "Відгук перевірки",
     "ca": "Comentaris de la revisió"
+  },
+  "AIK$CONVERSATION_PANEL_EMPTY": {
+    "en": "No conversation yet",
+    "ja": "まだ会話がありません",
+    "zh-CN": "暂无对话",
+    "zh-TW": "尚無對話",
+    "ko-KR": "아직 대화가 없습니다",
+    "no": "Ingen samtale ennå",
+    "it": "Nessuna conversazione ancora",
+    "pt": "Nenhuma conversa ainda",
+    "es": "Aún no hay conversación",
+    "ar": "لا توجد محادثة بعد",
+    "fr": "Aucune conversation pour l'instant",
+    "tr": "Henüz konuşma yok",
+    "de": "Noch keine Unterhaltung",
+    "uk": "Поки що немає розмови",
+    "ca": "Encara no hi ha cap conversa"
   }
 }
