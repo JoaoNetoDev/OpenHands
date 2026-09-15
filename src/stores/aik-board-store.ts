@@ -783,3 +783,17 @@ export const useAikBoardStore = create<AikBoardStore>()((set, get) => ({
     return () => clearInterval(intervalId);
   },
 }));
+
+// Dev-only console/E2E handle (same pattern as `metrics-store.ts:34-40`):
+// SPRINT-11's `aik-performance.spec.ts` needs to populate ~200 tasks
+// directly against the store (SPEC §7 "popular 200 tarefas via
+// aik-board-store diretamente, sem passar por 200 cliques de UI") — there
+// is no other way to reach a Zustand store instance from a Playwright
+// `page.evaluate`. Gated on `import.meta.env.DEV` so it never reaches a
+// production build; `playwright.config.ts`'s `webServer` runs
+// `npm run dev:mock`, which has `DEV` on.
+if (typeof window !== "undefined" && import.meta.env.DEV) {
+  (
+    window as unknown as { __OH_AIK_BOARD_STORE__?: typeof useAikBoardStore }
+  ).__OH_AIK_BOARD_STORE__ = useAikBoardStore;
+}

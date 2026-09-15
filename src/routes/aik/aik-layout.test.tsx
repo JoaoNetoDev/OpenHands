@@ -1,8 +1,25 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { screen } from "@testing-library/react";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { renderWithProviders, useParamsMock } from "test-utils";
 import AikLayout from "#/routes/aik/aik-layout";
 import { useAikBoardStore } from "#/stores/aik-board-store";
+
+// `AikLayout` now wraps its subtree in `ReactRouterNavigationProvider`
+// (fix for the E2E-discovered bug: AIK's `useNavigation()` fell back to
+// the inert default `navigate: noop` because nothing wired the real
+// react-router hooks in for the AIK route tree — see `aik-layout.tsx`'s
+// comment). That provider calls react-router's own `useNavigation()`,
+// which requires a *data* router (`createMemoryRouter`/`RouterProvider`),
+// not just a plain `<MemoryRouter>` — same pattern `src/root.test.tsx`
+// uses for the equivalent real-router wrapper at the Agent Canvas root.
+function renderAikLayout() {
+  const router = createMemoryRouter(
+    [{ path: "/__aik/sys-1", Component: AikLayout }],
+    { initialEntries: ["/__aik/sys-1"] },
+  );
+  return renderWithProviders(<RouterProvider router={router} />);
+}
 
 function setSystemParam(systemId: string | undefined, phaseId?: string) {
   useParamsMock.mockReturnValue({
@@ -43,7 +60,7 @@ describe("AikLayout", () => {
   }
 
   it("renders the breadcrumb and outlet slot", () => {
-    const { unmount } = renderWithProviders(<AikLayout />);
+    const { unmount } = renderAikLayout();
 
     expect(screen.getByTestId("aik-layout")).toBeInTheDocument();
     expect(screen.getByTestId("aik-breadcrumb")).toBeInTheDocument();
@@ -54,7 +71,7 @@ describe("AikLayout", () => {
   it("starts polling (syncFromFile) on mount when systemId is present", () => {
     const syncFromFileSpy = spyOnSyncFromFile();
 
-    const { unmount } = renderWithProviders(<AikLayout />);
+    const { unmount } = renderAikLayout();
 
     expect(syncFromFileSpy).not.toHaveBeenCalled();
 
@@ -71,7 +88,7 @@ describe("AikLayout", () => {
   it("stops polling on unmount", () => {
     const syncFromFileSpy = spyOnSyncFromFile();
 
-    const { unmount } = renderWithProviders(<AikLayout />);
+    const { unmount } = renderAikLayout();
 
     vi.advanceTimersByTime(4000);
     expect(syncFromFileSpy).toHaveBeenCalledTimes(1);
@@ -86,7 +103,7 @@ describe("AikLayout", () => {
     setSystemParam(undefined);
     const syncFromFileSpy = spyOnSyncFromFile();
 
-    const { unmount } = renderWithProviders(<AikLayout />);
+    const { unmount } = renderAikLayout();
 
     vi.advanceTimersByTime(10000);
     expect(syncFromFileSpy).not.toHaveBeenCalled();
