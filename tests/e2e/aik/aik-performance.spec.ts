@@ -160,7 +160,14 @@ test.describe("AIK performance (CA-31/CA-32)", () => {
     // Store must exist in the page's JS context before we can call it —
     // land on any AIK screen first (root, cheapest paint).
     await page.goto("/__aik");
-    await expect(page.getByTestId("aik-systems-board")).toBeVisible();
+    // F-11-3: first paint of an AIK route in this environment can take
+    // ~6.7s isolated (worse under parallel execution) — not a functional
+    // bug, so only this post-goto assertion gets a wider timeout instead
+    // of touching the suite-wide default in playwright.config.ts. This is
+    // outside the `firstPaintMs`/CA-31 measurement window below.
+    await expect(page.getByTestId("aik-systems-board")).toBeVisible({
+      timeout: 15000,
+    });
     await dismissTelemetryBanner();
 
     const { systemId } = await seedLargeBoard(page);
@@ -206,7 +213,14 @@ test.describe("AIK performance (CA-31/CA-32)", () => {
     await seedLocalBackend(page);
     const dismissTelemetryBanner = makeTelemetryBannerDismisser(page);
     await page.goto("/__aik");
-    await expect(page.getByTestId("aik-systems-board")).toBeVisible();
+    // F-11-3: first paint of an AIK route in this environment can take
+    // ~6.7s isolated (worse under parallel execution) — not a functional
+    // bug, so only this post-goto assertion gets a wider timeout instead
+    // of touching the suite-wide default in playwright.config.ts. This is
+    // outside the `firstPaintMs`/CA-31 measurement window below.
+    await expect(page.getByTestId("aik-systems-board")).toBeVisible({
+      timeout: 15000,
+    });
     await dismissTelemetryBanner();
     const { systemId } = await seedLargeBoard(page);
 

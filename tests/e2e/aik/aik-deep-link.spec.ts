@@ -77,8 +77,16 @@ test.describe("AIK deep link (CA-02)", () => {
     // tasks board itself both mounted on the very first paint of this
     // navigation — no intermediate "not found"/404 flash from a client
     // redirect, which is the failure mode CA-02 guards against.
-    await expect(page.getByTestId("aik-layout")).toBeVisible();
-    await expect(page.getByTestId("aik-tasks-board")).toBeVisible();
+    // F-11-3: first paint of an AIK route in this environment can take
+    // ~6.7s isolated (worse under parallel execution) — not a functional
+    // bug, so only these post-goto assertions get a wider timeout instead
+    // of touching the suite-wide default in playwright.config.ts.
+    await expect(page.getByTestId("aik-layout")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByTestId("aik-tasks-board")).toBeVisible({
+      timeout: 15000,
+    });
     await expect(
       page.getByTestId("aik-tasks-board-not-found"),
     ).not.toBeVisible();
@@ -102,7 +110,9 @@ test.describe("AIK deep link (CA-02)", () => {
     const response = await page.goto("/__aik");
     expect(response?.ok()).toBe(true);
 
-    await expect(page.getByTestId("aik-systems-board")).toBeVisible();
+    await expect(page.getByTestId("aik-systems-board")).toBeVisible({
+      timeout: 15000,
+    });
     await expect(
       page.getByTestId("aik-systems-board-create-button"),
     ).toBeVisible();
@@ -120,10 +130,14 @@ test.describe("AIK deep link (CA-02)", () => {
     const systemId = "33333333-3333-4333-8333-333333333333";
     const phaseId = "44444444-4444-4444-8444-444444444444";
     await page.goto(`/__aik/${systemId}/fases/${phaseId}`);
-    await expect(page.getByTestId("aik-tasks-board")).toBeVisible();
+    await expect(page.getByTestId("aik-tasks-board")).toBeVisible({
+      timeout: 15000,
+    });
 
     const response = await page.reload();
     expect(response?.ok()).toBe(true);
-    await expect(page.getByTestId("aik-tasks-board")).toBeVisible();
+    await expect(page.getByTestId("aik-tasks-board")).toBeVisible({
+      timeout: 15000,
+    });
   });
 });
