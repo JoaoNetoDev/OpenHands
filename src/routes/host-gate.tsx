@@ -1,17 +1,12 @@
-// Only entry registered in `src/routes.ts` (rota `*`). Decides, once per
-// mount, which app tree to render based on `window.location.hostname` — no
-// URL prefix, no proxy path rewrite (TECH §2.1, SPEC §2.1).
-import React from "react";
-import type { JSX } from "react";
-import { AgentCanvasApp } from "./agent-canvas-app";
-import { AikRoutes } from "./aik/aik-routes";
+// Fallback from SPEC §2.1: the `<Routes>` imperative spike (see git history
+// on this file) failed validation because it silently broke every
+// `clientLoader` in the moved tree — only the file-routes/data-router
+// convention (`HydratedRouter`) invokes `clientLoader`. AIK is now a normal
+// file-routes subtree under the reserved `/__aik` prefix (`src/routes.ts`),
+// and this module shrinks to the pure hostname check consumed by
+// `routes/index-home.tsx`'s `clientLoader` to redirect `/` there.
+const AIK_HOSTNAMES = ["aik.zadotec.com.br"];
 
-const AIK_HOSTNAMES = ["aik.zadotec.com.br"]; // TECH §2.1 — lido 1x no mount
-
-export default function HostGate(): JSX.Element {
-  const isAik = React.useMemo(
-    () => AIK_HOSTNAMES.includes(window.location.hostname),
-    [],
-  );
-  return isAik ? <AikRoutes /> : <AgentCanvasApp />;
+export function isAikHostname(hostname: string): boolean {
+  return AIK_HOSTNAMES.includes(hostname);
 }

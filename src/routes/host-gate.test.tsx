@@ -1,136 +1,109 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
-import { I18nextProvider } from "react-i18next";
-import { MemoryRouter, Routes, Route } from "react-router";
-import i18n from "i18next";
-import { ActiveBackendProvider } from "#/contexts/active-backend-context";
-import HostGate from "./host-gate";
+import { describe, expect, it, vi, afterEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { createRoutesStub } from "react-router";
+import { isAikHostname } from "./host-gate";
+import { clientLoader as indexHomeClientLoader } from "./index-home";
 
-// `root-layout.tsx` (`MainApp`) pulls in the sidebar, alert banner, command
-// menu, and a handful of network-backed hooks that are already covered by
-// other suites. This test's job is to prove the SPEC §2.1 risk — that a
-// `<Routes>` mounted imperatively inside the data router (via the `*` splat
-// route -> `host-gate.tsx`) matches paths and delegates correctly by
-// hostname — not to re-verify `MainApp` itself. Stub it to an `<Outlet/>`
-// passthrough so the assertions stay focused on routing.
-vi.mock("./root-layout", async () => {
-  const { Outlet } = await import("react-router");
-  return {
-    default: () => (
-      <div data-testid="agent-canvas-root-layout">
-        <Outlet />
-      </div>
-    ),
-  };
-});
-
-// `HomeScreen` (the default "/" route inside `AgentCanvasApp`) renders the
-// recommended-automations rail, which observes its container via
-// `ResizeObserver` — not stubbed globally by `vitest.setup.ts`. Provide a
-// no-op so the real, unmocked route tree can mount for this test.
-class ResizeObserverStub {
-  observe() {}
-
-  unobserve() {}
-
-  disconnect() {}
-}
-// Assigned directly (not via `vi.stubGlobal`) so `afterEach`'s
-// `vi.unstubAllGlobals()` (needed to reset the per-test hostname stub below)
-// does not also remove this one between tests. `vitest.setup.ts` replaces
-// the global `window` binding with a stub object distinct from
-// `globalThis`, so both need the assignment for the bare `ResizeObserver`
-// identifier components resolve through `window` to work.
-(
-  globalThis as unknown as { ResizeObserver: typeof ResizeObserverStub }
-).ResizeObserver = ResizeObserverStub;
-(
-  window as unknown as { ResizeObserver: typeof ResizeObserverStub }
-).ResizeObserver = ResizeObserverStub;
+// F-02-1 fix: the `<Routes>` imperative spike from the previous version of
+// this file broke every `clientLoader` in the moved tree — only the
+// file-routes/data-router convention (`HydratedRouter`) invokes
+// `clientLoader`. AIK is now a normal file-routes subtree under `/__aik`
+// (`src/routes.ts`), reached only via a redirect from `routes/index-home.tsx`
+// `clientLoader` when the hostname is an AIK vhost (SPEC §2.1 fallback).
+// `host-gate.tsx` itself shrinks to the pure hostname predicate below.
 
 function stubHostname(hostname: string) {
   vi.stubGlobal("location", { ...window.location, hostname });
 }
 
-function renderHostGate(initialEntry: string) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+describe("isAikHostname", () => {
+  it("is true for the configured AIK vhost", () => {
+    expect(isAikHostname("aik.zadotec.com.br")).toBe(true);
   });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <I18nextProvider i18n={i18n}>
-        <ActiveBackendProvider>
-          {/* Mirrors production nesting: `routes.ts` registers `route("*",
-              "routes/host-gate.tsx")` inside the app's data router; wrapping
-              HostGate in an outer `<Routes><Route path="*" .../></Routes>`
-              here reproduces "a `<Routes>` nested inside another router's
-              splat route", the exact pattern SPEC §2.1 (F-SPEC-5) flagged as
-              unproven. */}
-          <MemoryRouter initialEntries={[initialEntry]}>
-            <Routes>
-              <Route path="*" element={<HostGate />} />
-            </Routes>
-          </MemoryRouter>
-        </ActiveBackendProvider>
-      </I18nextProvider>
-    </QueryClientProvider>,
-  );
-}
 
-describe("HostGate", () => {
+  it("is false for the Agent Canvas vhost and other hosts", () => {
+    expect(isAikHostname("openhands.zadotec.com.br")).toBe(false);
+    expect(isAikHostname("localhost")).toBe(false);
+  });
+});
+
+describe("index-home clientLoader host redirect", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("mounts AikRoutes (AIK placeholder) when the hostname is an AIK vhost", () => {
+  it("redirects to /__aik on an AIK vhost, ahead of any pinned-home redirect", async () => {
     stubHostname("aik.zadotec.com.br");
 
-    renderHostGate("/");
+    const response = indexHomeClientLoader() as Response;
 
-    expect(screen.getByTestId("aik-layout")).toBeInTheDocument();
-    expect(screen.getByTestId("aik-systems-board")).toBeInTheDocument();
+    expect(response).toBeInstanceOf(Response);
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("/__aik");
   });
 
-  it("resolves :systemId inside the nested AikRoutes <Routes> tree", () => {
-    stubHostname("aik.zadotec.com.br");
-
-    renderHostGate("/system-1");
-
-    expect(screen.getByTestId("aik-layout")).toBeInTheDocument();
-    expect(screen.getByTestId("aik-phases-board")).toBeInTheDocument();
-    expect(screen.queryByTestId("aik-systems-board")).not.toBeInTheDocument();
-  });
-
-  it("resolves the nested :systemId/fases/:phaseId route inside AikRoutes", () => {
-    stubHostname("aik.zadotec.com.br");
-
-    renderHostGate("/system-1/fases/phase-1");
-
-    expect(screen.getByTestId("aik-layout")).toBeInTheDocument();
-    expect(screen.getByTestId("aik-tasks-board")).toBeInTheDocument();
-  });
-
-  it("mounts AgentCanvasApp when the hostname is not an AIK vhost", () => {
+  it("does not redirect on the default Agent Canvas vhost with no pinned home", () => {
     stubHostname("openhands.zadotec.com.br");
 
-    renderHostGate("/");
+    const result = indexHomeClientLoader();
 
-    expect(screen.getByTestId("agent-canvas-root-layout")).toBeInTheDocument();
-    expect(screen.queryByTestId("aik-layout")).not.toBeInTheDocument();
+    expect(result).toBeNull();
+  });
+});
+
+describe("regression: routes.ts data router still runs clientLoader after the move", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
-  it("regression: an existing Agent Canvas route (/board) still renders via AgentCanvasApp", () => {
+  // Closes F-02-3: proves a route mounted the same way `src/routes.ts`
+  // mounts it (a data router, via `createRoutesStub`, which — like
+  // `HydratedRouter` — is the framework-mode convention that actually
+  // invokes `clientLoader`) runs its loader and lands where the loader
+  // says, using the same `index-home.tsx` module `routes.ts` wires at `/`.
+  it("runs index-home's clientLoader and redirects an AIK vhost to /__aik", async () => {
+    stubHostname("aik.zadotec.com.br");
+
+    const RouterStub = createRoutesStub([
+      {
+        path: "/",
+        loader: indexHomeClientLoader,
+        Component: () => <div data-testid="agent-canvas-home" />,
+      },
+      {
+        path: "/__aik",
+        Component: () => <div data-testid="aik-landing" />,
+      },
+    ]);
+
+    render(<RouterStub initialEntries={["/"]} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("aik-landing")).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("agent-canvas-home")).not.toBeInTheDocument();
+  });
+
+  it("runs index-home's clientLoader and stays on / for the Agent Canvas vhost", async () => {
     stubHostname("openhands.zadotec.com.br");
 
-    renderHostGate("/board");
+    const RouterStub = createRoutesStub([
+      {
+        path: "/",
+        loader: indexHomeClientLoader,
+        Component: () => <div data-testid="agent-canvas-home" />,
+      },
+      {
+        path: "/__aik",
+        Component: () => <div data-testid="aik-landing" />,
+      },
+    ]);
 
-    // Default test environment has no active workspace configured, so
-    // `BoardListRoute` renders its "no active workspace" state — the
-    // point here is that the `/board` path reached `BoardListRoute` at
-    // all (proving the moved route tree still matches), not which of its
-    // internal states is showing.
-    expect(screen.getByTestId("agent-canvas-root-layout")).toBeInTheDocument();
-    expect(screen.getByTestId("kanban-board-no-workspace")).toBeInTheDocument();
+    render(<RouterStub initialEntries={["/"]} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("agent-canvas-home")).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("aik-landing")).not.toBeInTheDocument();
   });
 });

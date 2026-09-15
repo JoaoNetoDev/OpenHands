@@ -1,9 +1,5 @@
-import {
-  useLoaderData,
-  useLocation,
-  useNavigate,
-  type ClientLoaderFunctionArgs,
-} from "react-router";
+import { useLoaderData, useLocation, useNavigate } from "react-router";
+import { Route } from "./+types/automation-setup-route";
 import {
   automationListPath,
   hasAutomationInterface,
@@ -19,9 +15,7 @@ import { SetupDialog } from "#/components/features/manifest/manifest-setup-dialo
  * whose manifest failed admission — is a 404, which the layout's existing
  * error boundary renders.
  */
-// See settings.tsx for why this no longer imports from `./+types/*`
-// (SPRINT-02, TECH §2.1) — dead code post-move, type import swapped only.
-export const clientLoader = ({ params }: ClientLoaderFunctionArgs) => {
+export const clientLoader = ({ params }: Route.ClientLoaderArgs) => {
   const entry = SETUP_REGISTRY.findById(params.automationId ?? "");
 
   // Setup submits against the interface manifest's endpoints, so without an
