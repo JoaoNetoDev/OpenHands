@@ -77,7 +77,12 @@ describe("uploadFilesToConversation", () => {
       expect.objectContaining({ name: "a.txt" }),
       "/Users/test/workspace/project/a.txt",
     );
-    expect(result.uploaded_files).toEqual(["a.txt"]);
+    // @spec ATTACH-PATH-001 — `uploaded_files` carries the absolute path, not
+    // just the basename, so the chat composer's prompt augmentation can hand
+    // the LLM a location it can `ls` directly.
+    expect(result.uploaded_files).toEqual([
+      "/Users/test/workspace/project/a.txt",
+    ]);
     expect(batchGetCloudConversations).not.toHaveBeenCalled();
     expect(getHomeMock).toHaveBeenCalled();
   });
@@ -109,7 +114,9 @@ describe("uploadFilesToConversation", () => {
       expect.objectContaining({ name: "notes.md" }),
       "/Users/test/projects/foo/notes.md",
     );
-    expect(result.uploaded_files).toEqual(["notes.md"]);
+    expect(result.uploaded_files).toEqual([
+      "/Users/test/projects/foo/notes.md",
+    ]);
     expect(getHomeMock).not.toHaveBeenCalled();
   });
 
@@ -142,6 +149,6 @@ describe("uploadFilesToConversation", () => {
       expect.objectContaining({ name: "notes.md" }),
       "/workspace/project/notes.md",
     );
-    expect(result.uploaded_files).toEqual(["notes.md"]);
+    expect(result.uploaded_files).toEqual(["/workspace/project/notes.md"]);
   });
 });

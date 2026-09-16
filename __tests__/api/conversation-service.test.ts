@@ -57,8 +57,16 @@ describe("ConversationService", () => {
         expect.objectContaining({ name: "b.txt" }),
         "/Users/agent/workspace/project/b.txt",
       );
+      // @spec ATTACH-PATH-001 — `uploaded_files` reports absolute paths so the
+      // chat composer's prompt augmentation block can hand the LLM a usable
+      // location. A basename-only entry (`"a.txt"`) is insufficient: the agent
+      // then has to `find` for the file, which fails when the workspace lives
+      // outside the agent-server sandbox's discoverable paths.
       expect(result).toEqual({
-        uploaded_files: ["a.txt", "b.txt"],
+        uploaded_files: [
+          "/Users/agent/workspace/project/a.txt",
+          "/Users/agent/workspace/project/b.txt",
+        ],
         skipped_files: [],
       });
     });
@@ -75,7 +83,7 @@ describe("ConversationService", () => {
         "/Users/agent/workspace/project/evil.txt",
       );
       expect(result).toEqual({
-        uploaded_files: ["evil.txt"],
+        uploaded_files: ["/Users/agent/workspace/project/evil.txt"],
         skipped_files: [],
       });
     });
@@ -113,7 +121,7 @@ describe("ConversationService", () => {
         expect.objectContaining({ apiKey: "session-key" }),
       );
       expect(result).toEqual({
-        uploaded_files: ["ok.txt"],
+        uploaded_files: ["/Users/agent/workspace/project/ok.txt"],
         skipped_files: [{ name: "bad.txt", reason: "too large" }],
       });
     });
@@ -136,7 +144,9 @@ describe("ConversationService", () => {
 
       expect(fileUploadMock).toHaveBeenCalledTimes(7);
       expect(maxActiveUploads).toBe(5);
-      expect(result.uploaded_files).toEqual(files.map((file) => file.name));
+      expect(result.uploaded_files).toEqual(
+        files.map((file) => `/Users/agent/workspace/project/${file.name}`),
+      );
       expect(result.skipped_files).toEqual([]);
     });
   });

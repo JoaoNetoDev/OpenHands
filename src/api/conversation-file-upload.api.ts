@@ -6,7 +6,6 @@ import type { AppConversation } from "#/api/conversation-service/agent-server-co
 import type { FileUploadSuccessResponse } from "#/api/open-hands.types";
 import {
   buildWorkspaceUploadPath,
-  getSafeUploadFileName,
   resolveConversationUploadWorkingDir,
 } from "#/api/workspace-upload-path";
 
@@ -131,7 +130,6 @@ async function uploadFilesToRuntime(options: {
 
   const uploadFile = async (file: File) => {
     try {
-      const safeName = getSafeUploadFileName(file.name);
       // @spec WUP-001 — Build an absolute upload path that's anchored against
       // the agent-server's home dir (when `workingDir` is relative) instead
       // of the filesystem root. Without this, default conversations whose
@@ -143,7 +141,13 @@ async function uploadFilesToRuntime(options: {
         sessionApiKey,
       });
       await workspace.fileUpload(file, uploadPath);
-      return { uploadedFile: safeName, skippedFile: null };
+      // @spec ATTACH-PATH-001 — Return the absolute `uploadPath` (not just the
+      // basename) so the chat composer can include it in the prompt
+      // augmentation block (`CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE`).
+      // Without this, the LLM only sees the bare filename and has to guess the
+      // workspace location — which fails when the agent-server sandbox places
+      // the file outside the LLM's typical `find` reach.
+      return { uploadedFile: uploadPath, skippedFile: null };
     } catch (error) {
       return {
         uploadedFile: null,
