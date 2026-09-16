@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACP provider switch — persistent affordance in the chat input bar</title>
+<style>
+  :root {
+    --fg: #e6e6e6;
+    --fg-dim: #a8b1bd;
+    --bg: #0f1115;
+    --bg-card: #161922;
+    --bg-card-2: #1d2230;
+    --accent: #f08c2e;
+    --accent-dim: #6f4319;
+    --link: #7ab0ff;
+    --good: #4ec9b0;
+    --warn: #d29b3c;
+    --bad: #d96b6b;
+    --border: #2a2f3a;
+    --code-bg: #11141b;
+  }
+  html, body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.55; }
+  body { max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre { font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; }
+  code { background: var(--code-bg); border: 1px solid var(--border); padding: 1px 6px; border-radius: 4px; font-size: 0.92em; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); padding: 14px 16px; border-radius: 8px; overflow-x: auto; line-height: 1.45; }
+  pre code { background: transparent; border: 0; padding: 0; }
+  h1 { font-size: 1.85rem; margin: 0 0 8px; letter-spacing: -0.01em; }
+  h2 { font-size: 1.35rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.05rem; margin: 22px 0 8px; }
+  h1 small { font-weight: 400; color: var(--fg-dim); font-size: 0.65em; margin-left: 10px; }
+  h2 .num { display: inline-block; min-width: 28px; color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 8px; }
+  p, li { color: var(--fg); }
+  .meta { color: var(--fg-dim); font-size: 0.9rem; margin-bottom: 20px; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+  .card.callout { border-color: var(--accent-dim); background: linear-gradient(180deg, #1c1820 0%, #161922 100%); }
+  .card h4 { margin: 0 0 8px; font-size: 1.05rem; color: var(--accent); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 12px 0; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.95rem; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+  th { color: var(--fg-dim); font-weight: 600; }
+  .good { color: var(--good); }
+  .warn { color: var(--warn); }
+  .bad { color: var(--bad); }
+  .muted { color: var(--fg-dim); }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.8rem; background: var(--bg-card-2); border: 1px solid var(--border); margin-right: 4px; }
+  .pill.accent { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  .diff-add { color: var(--good); }
+  .diff-del { color: var(--bad); }
+  .sig { font-family: ui-monospace, monospace; font-size: 0.85em; }
+  .footer { margin-top: 40px; color: var(--fg-dim); font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 14px; }
+  /* Tiny before/after diagram of the chat input row */
+  .input-row { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-card-2); margin: 10px 0; }
+  .input-row .seg { padding: 4px 10px; border-radius: 999px; font-size: 0.85rem; }
+  .input-row .seg.add { background: #2a2f3a; color: var(--fg-dim); }
+  .input-row .seg.acp { background: #1a2434; color: var(--accent); border: 1px solid var(--accent-dim); }
+  .input-row .seg.model { background: #2a2f3a; color: var(--fg-dim); }
+  .input-row .seg.send { background: var(--accent); color: #1a1206; margin-left: auto; font-weight: 600; }
+  .input-row .seg.new { background: var(--accent-dim); color: var(--accent); border: 1px dashed var(--accent); }
+</style>
+</head>
+<body>
+
+<h1>ACP provider switch <small>v2 — persistent button in the chat input bar</small></h1>
+<p class="meta">
+  Branch <code>feat/switch-acp-provider-chat-input</code> · based on <code>sprint/openhands-tray-03</code> (<code>d809785</code>, after merging v1)
+  · PR opens against <code>sprint/openhands-tray-03</code> on <code>JoaoNetoDev/OpenHands</code>.
+</p>
+
+<div class="card callout">
+  <h4>Supersedes v1 (banner-only) for happy-path discovery</h4>
+  <p>
+    v1 (<code>feat/switch-acp-provider-on-error</code>, merged into <code>sprint/openhands-tray-03</code> as
+    <code>d809785</code>) added a "Switch provider" button inside the error banner — visible only when the
+    conversation is in a non-RUNNING error state. In practice, users hit
+    <code>acp_server === null</code> on the wire and never see the banner offer. v2 keeps the banner
+    recovery path but also adds an <strong>always-visible</strong> button in the chat input row, so the
+    user can fork to a different ACP provider on any healthy ACP conversation — not only on
+    the error banner.
+  </p>
+  <p>v1 doc: <a href="https://htmlpreview.github.io/?https://github.com/JoaoNetoDev/OpenHands/blob/sprint/openhands-tray-03/.pr/switch-acp-provider.html">switch-acp-provider.html</a>.</p>
+</div>
+
+<h2><span class="num">1</span>Motivation</h2>
+<p>
+  The user wanted a way to "create a branch from a conversation" to keep going with possibly another
+  ACP provider/model. Two recurring friction points made v1 unusable in practice:
+</p>
+<ol>
+  <li><strong>Gate is fragile</strong> — v1 requires <code>acp_server</code> to be stamped on
+    <code>SharedConversation</code> by the agent-server; when that field is missing, the banner action
+    never appears.</li>
+  <li><strong>Only visible on error</strong> — a user who just wants to try a different model on a
+    healthy conversation has no affordance. The button only existed as a recovery from
+    <code>[-32603]</code>.</li>
+</ol>
+<p>
+  v2 fixes both: the new button lives in the chat input row, mirrors the slot
+  <code>ChangeAgentButton</code> occupies (which is hidden in ACP context), and is visible any time
+  the user has at least one OTHER ACP profile configured. The same
+  <code>useSwitchAcpProvider</code> mutation does the heavy lifting.
+</p>
+
+<h3>Where it lands in the row</h3>
+<div class="card">
+  <p class="muted"><strong>Before</strong> — cloud non-ACP shows the Code/Plan pill; ACP shows just the model picker.</p>
+  <div class="input-row">
+    <span class="seg add">＋</span>
+    <span class="seg add">Code/Plan</span>
+    <span class="seg model">model · gpt-5.2</span>
+    <span class="seg send">↑</span>
+  </div>
+  <p class="muted"><strong>After</strong> — ACP context shows the new pill (icon ⇄ + active provider name) right next to the model picker.</p>
+  <div class="input-row">
+    <span class="seg add">＋</span>
+    <span class="seg new">⇄ Claude Code ▾</span>
+    <span class="seg model">model · gpt-5.2</span>
+    <span class="seg send">↑</span>
+  </div>
+  <p class="muted">Click <code>⇄ Claude Code ▾</code> → popover lists every other configured ACP profile (OpenHands profiles filtered out, active profile excluded). Picking one runs <code>useSwitchAcpProvider</code>, which carries over workspace / repo / branch / plugins, sets <code>parentConversationId</code>, and navigates to the new id.</p>
+</div>
+
+<h2><span class="num">2</span>Gate logic</h2>
+<table>
+  <thead><tr><th>Condition</th><th>Source</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td><code>modelState.isAcpContext</code></td><td><code>useChatInputModelState</code></td><td>Same signal <code>ChangeAgentButton</code> uses in reverse — we show when it hides.</td></tr>
+    <tr><td><code>!isCloud</code></td><td><code>useActiveBackend</code></td><td>v2 stays local-only; cloud parity work tracks under #3730.</td></tr>
+    <tr><td><code>canShowAcpProviderSwitch(conversation)</code></td><td>shared helper</td><td>Re-uses v1's gate so the button never claims a non-ACP conversation is forkable.</td></tr>
+    <tr><td><code>otherAcpProfiles.length &gt; 0</code></td><td>filter in component</td><td>If the user only has Claude Code, we hide entirely — no dead-end popover.</td></tr>
+  </tbody>
+</table>
+
+<p>
+  <span class="pill accent">Notable</span>
+  Unlike v1, v2 <strong>does not</strong> gate on <code>execution_status</code>. The button is always
+  available during a healthy conversation. Picking a profile from the popover creates a new
+  conversation; the original keeps running and stays open in history — the user can flip back if
+  they change their mind.
+</p>
+
+<h2><span class="num">3</span>Public API additions</h2>
+<table>
+  <thead><tr><th>Symbol</th><th>Kind</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>SwitchAcpProviderButton</code></td><td>React component</td><td>Trigger pill + popover of other ACP profiles. Self-hides when no targets.</td></tr>
+    <tr><td><code>SwitchAcpProviderContextMenu</code></td><td>React component</td><td>Popover body. Click-outside closes.</td></tr>
+    <tr><td><code>useSwitchAcpProviderCallback</code></td><td>hook (re-used)</td><td>Returns a <code>(profile) =&gt; void</code> that runs the mutation. Already shipped in v1.</td></tr>
+    <tr><td><code>SWITCH_ACP_PROVIDER_MUTATION_KEY</code></td><td>constant</td><td>Re-exported from v1; lets callers <code>useIsMutating</code> on the hot path.</td></tr>
+  </tbody>
+</table>
+
+<h3>Component tree</h3>
+<pre><code>ChatInputActions
+└── &lt;SwitchAcpProviderButton /&gt;        // mounted when !isCloud &amp;&amp; isAcpContext
+    ├── StyledTooltip                      // "Continue this conversation with a different ACP provider"
+    ├── button (data-testid="switch-acp-provider-trigger")
+    │     ├── Repeat icon
+    │     ├── currentProfileName (or fallback i18n)
+    │     └── ComboboxCaretInline
+    └── &lt;SwitchAcpProviderContextMenu /&gt; // mounted while open
+          ├── ContextMenu                  // position="top" alignment="left"
+          └── ContextMenuListItem (per profile, testId="switch-acp-provider-option-{id|name}")
+                └── ContextMenuIconTextWithDescription
+                      ├── RobotIcon
+                      ├── profile.name
+                      └── i18n(CHAT$SWITCH_ACP_PROVIDER_FORK_HINT)</code></pre>
+
+<h2><span class="num">4</span>Changed files</h2>
+<table>
+  <thead><tr><th></th><th>File</th><th>+ / −</th><th>Δ</th></tr></thead>
+  <tbody>
+    <tr><td><strong>NEW</strong></td><td><code>src/components/features/chat/switch-acp-provider-button.tsx</code></td><td>+115 / 0</td><td>trigger pill + popover wiring</td></tr>
+    <tr><td><strong>NEW</strong></td><td><code>src/components/features/chat/switch-acp-provider-context-menu.tsx</code></td><td>+63 / 0</td><td>popover body, click-outside close</td></tr>
+    <tr><td>✏</td><td><code>src/components/features/chat/components/chat-input-actions.tsx</code></td><td>+6 / 0</td><td>1 import + 1 gate + 1 mount block</td></tr>
+    <tr><td>⚙</td><td><code>src/i18n/translation.json</code></td><td>+34 / 0</td><td><code>CHAT$SWITCH_ACP_PROVIDER_TOOLTIP</code> &amp; <code>_FORK_HINT</code> × 15 langs</td></tr>
+    <tr><td><strong>NEW</strong></td><td><code>__tests__/components/chat/switch-acp-provider-button/switch-acp-provider-button.test.tsx</code></td><td>+129 / 0</td><td>5 unit tests covering gate + filter + click</td></tr>
+  </tbody>
+</table>
+
+<h2><span class="num">5</span>Verification</h2>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td><code>npm run typecheck</code></td><td class="good">passes</td></tr>
+    <tr><td><code>npx eslint</code> on changed files</td><td class="good">passes</td></tr>
+    <tr><td><code>npm run check-translation-completeness</code></td><td class="good">All translation keys have complete language coverage</td></tr>
+    <tr><td><code>vitest run</code> on the new test</td><td class="good">5/5 pass (renders nothing in non-ACP; renders nothing when no other ACP profile; renders active name; filters OpenHands + active from menu; invokes callback on click)</td></tr>
+    <tr><td><code>vitest run __tests__/components/chat/error-message-banner.test.tsx</code></td><td class="good">19/19 still pass (no regression on v1)</td></tr>
+  </tbody>
+</table>
+
+<h3>Manual smoke checklist</h3>
+<ol>
+  <li>Open any ACP conversation → input row should show <code>⇄ &lt;current provider&gt; ▾</code> pill.</li>
+  <li>Click pill → popover lists every OTHER ACP profile (OpenHands profiles hidden, current hidden).</li>
+  <li>Click a profile → new conversation starts with same workspace/repo, navigation lands on its id, original conversation stays in sidebar.</li>
+  <li>If the agent-server returns <code>acp_server === null</code>, the pill still renders as long as <code>agent_kind === 'acp'</code> reaches the frontend — fallback inside <code>canShowAcpProviderSwitch</code>.</li>
+</ol>
+
+<h2><span class="num">6</span>Risks &amp; follow-ups</h2>
+<ul>
+  <li><strong>Cloud parity</strong> — v2 stays local-only (cloud needs <code>callCloudProxy</code> wiring on the agent-profiles list endpoint before this can be enabled with <code>backend.kind === "cloud"</code>; tracks under #3730).</li>
+  <li><strong>Row width</strong> — the pill is added before the model picker with no ref/overflow wiring. On narrow viewports the row may scroll/overflow. Acceptable for the primary desktop layout; revisit if mobile parity becomes a goal.</li>
+  <li><strong>Tooltip on popover open</strong> — HeroUI <code>StyledTooltip</code> stays mounted while the popover is open; the popover overlays the tooltip with <code>z-index</code> from <code>ContextMenu</code>. No visual collision observed in local dev.</li>
+</ul>
+
+<div class="footer">
+  Design doc for PR <code>feat/switch-acp-provider-chat-input</code> on
+  <code>JoaoNetoDev/OpenHands</code>. This document is part of the .pr/ pre-publish preview
+  pipeline; reviewers can render it via
+  <a href="https://htmlpreview.github.io/?https://github.com/JoaoNetoDev/OpenHands/blob/feat/switch-acp-provider-chat-input/.pr/switch-acp-provider-chat-input.html">htmlpreview.github.io</a>.
+</div>
+
+</body>
+</html>
