@@ -399,6 +399,19 @@ export function ChatInterface() {
 
     skippedFiles.forEach((f) => displayErrorToast(f.reason));
 
+    // @spec ATTACH-FAIL-001 — If the user attached files and NONE of them
+    // uploaded successfully, abort the send entirely. Otherwise the message
+    // goes out with no file references, the LLM has no idea attachments were
+    // intended, and the user gets no clear feedback that the attachments
+    // were lost. Surface a consolidated toast and leave the attachments
+    // attached so the user can retry without re-picking them.
+    if (files.length > 0 && uploadedFiles.length === 0) {
+      displayErrorToast(
+        t(I18nKey.CHAT_INTERFACE$ATTACHMENTS_UPLOAD_FAILED_ABORT),
+      );
+      return;
+    }
+
     const filePrompt = `${t(I18nKey.CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE)}: ${uploadedFiles.join("\n\n")}`;
     let prompt = content;
     if (visionFallbackText) {

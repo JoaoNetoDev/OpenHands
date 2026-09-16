@@ -94,6 +94,16 @@ export async function sendMessageWithAttachments(options: {
 
   skippedFiles.forEach((file) => displayErrorToast(file.reason));
 
+  // @spec ATTACH-FAIL-001 — Abort the send when the user attached files and
+  // none of them landed in the workspace. Without this, the message goes out
+  // with no file references, the LLM has no idea attachments were intended,
+  // and the home-chat-launcher caller swallows the empty result silently.
+  // The caller already wraps this in try/catch and re-toasts on throw, so a
+  // thrown Error is the right channel.
+  if (filesToUpload.length > 0 && uploadedFiles.length === 0) {
+    throw new Error(t(I18nKey.CHAT_INTERFACE$ATTACHMENTS_UPLOAD_FAILED_ABORT));
+  }
+
   const filePrompt = `${t(I18nKey.CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE)}: ${uploadedFiles.join("\n\n")}`;
   let prompt = content;
   if (visionFallbackText) {

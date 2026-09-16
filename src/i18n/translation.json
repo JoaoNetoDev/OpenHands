@@ -35104,6 +35104,23 @@
     "uk": "Не вдалося надіслати повідомлення",
     "ca": "No s'ha pogut enviar el missatge"
   },
+  "CHAT_INTERFACE$ATTACHMENTS_UPLOAD_FAILED_ABORT": {
+    "en": "Couldn't upload your attachments, so the message wasn't sent. Re-attach and try again.",
+    "ja": "添付ファイルをアップロードできなかったため、メッセージは送信されませんでした。再度ファイルを添付してやり直してください。",
+    "zh-CN": "附件上传失败，消息未发送。请重新附加后再试。",
+    "zh-TW": "附件上傳失敗，訊息未送出。請重新附加後再試一次。",
+    "ko-KR": "첨부 파일을 업로드하지 못해 메시지가 전송되지 않았습니다. 다시 첨부한 후 시도해 주세요.",
+    "no": "Kunne ikke laste opp vedleggene dine, så meldingen ble ikke sendt. Legg ved igjen og prøv på nytt.",
+    "ar": "تعذّر تحميل المرفقات، لذا لم يتم إرسال الرسالة. أعد إرفاقها وحاول مرة أخرى.",
+    "de": "Anhänge konnten nicht hochgeladen werden, die Nachricht wurde nicht gesendet. Bitte erneut anhängen und erneut versuchen.",
+    "fr": "Impossible de téléverser vos pièces jointes, le message n'a pas été envoyé. Ré-attachez et réessayez.",
+    "it": "Impossibile caricare gli allegati, il messaggio non è stato inviato. Ricollegali e riprova.",
+    "pt": "Não foi possível enviar seus anexos, então a mensagem não foi enviada. Anexe novamente e tente outra vez.",
+    "es": "No se pudieron subir los archivos adjuntos, por lo que el mensaje no se envió. Vuelve a adjuntarlos e inténtalo de nuevo.",
+    "ca": "No s'han pogut carregar els fitxers adjunts, per la qual cosa el missatge no s'ha enviat. Torna a adjuntar-los i torna-ho a provar.",
+    "tr": "Ekleriniz yüklenemedi, bu nedenle mesaj gönderilmedi. Yeniden ekleyip tekrar deneyin.",
+    "uk": "Не вдалося завантажити вкладення, тому повідомлення не було надіслано. Прикріпіть ще раз і повторіть спробу."
+  },
   "SETTINGS$FETCH_ERROR": {
     "en": "Something went wrong while fetching settings. Please reload the page.",
     "ja": "設定の取得中に問題が発生しました。ページを再読み込みしてください。",
