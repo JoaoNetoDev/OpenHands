@@ -44,3 +44,8 @@ build-fresh/
 /resources/bin/
 # Downloaded Node.js distribution (populated by `npm run download-node` before packaging)
 /resources/node/
+
+# CodeGraph index: per-project cache built on demand by the codegraph tool
+.openhands/codegraph.db
+.openhands/codegraph.db-*
+.openhands/codegraph.lock

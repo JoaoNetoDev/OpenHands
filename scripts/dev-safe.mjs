@@ -408,7 +408,8 @@ export function validateFrontendDependencies(
  * builtin FinishTool so automation presets (openhands-automation >= 1.9.0) can
  * resolve it on the remote conversations they dispatch — see the note at the
  * bottom of tools/canvas_ui_tool.py. `codegraph_tool` registers the "codegraph"
- * tool (SQLite-backed per-project symbol index) — see tools/codegraph_tool.py.
+ * tool (per-project symbol + call graph, backed by openhands.sdk.codegraph) —
+ * see tools/codegraph_tool.py.
  */
 export const AGENT_SERVER_IMPORT_MODULES = "canvas_ui_tool,codegraph_tool";
 

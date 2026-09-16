@@ -1,345 +1,139 @@
-"""CodeGraph — a persistent, incremental symbol index per project, backed by
-SQLite, so the agent can jump straight to a definition/reference instead of
-re-scanning the whole tree with grep/glob every time.
+"""CodeGraph — the agent's window into the project's code knowledge graph.
 
 Registered as tool name "codegraph". Import at agent-server startup with
 ``--import-modules codegraph_tool`` (same convention as ``canvas_ui_tool``).
 
-Design:
-- One SQLite DB per project, at ``<working_dir>/.openhands/codegraph.db``.
-  Each remote machine can host multiple projects; since the DB lives inside
-  the project's own working_dir, every project gets its own isolated graph —
-  there is no cross-project global store to keep straight.
-- Every call refreshes the index incrementally first (mtime+size diff against
-  the last scan), then answers the query. No separate "build" step for the
-  user to remember.
-- File discovery uses `rg --files` when ripgrep is installed (respects
-  .gitignore automatically); falls back to os.walk with a conservative
-  exclude list otherwise.
-- Symbol extraction: precise (ast) for Python; regex heuristics for
-  JS/TS/JSX/TSX and PHP (this codebase's two other common stacks); a generic
-  regex heuristic for other extensions. Anything not recognized still gets
-  tracked as a file (so "references" search still covers it) but contributes
-  no symbols.
-- "references" shells out to ripgrep (or falls back to the same os.walk
-  scan) for a fixed-string search of the symbol name — this is still a scan,
-  but scoped to indexed source files and skipping heavy dirs, which is the
-  actual cost of the "onerosa" full grep this tool replaces for symbol work.
-- Tool description tells the agent explicitly: try codegraph first for
-  symbol lookups; grep/glob remain the fallback for full-text search or
-  anything codegraph comes up empty on.
+This module is a *thin adapter*: all indexing and querying lives in
+``openhands.sdk.codegraph``, which owns the schema, the incremental refresh and
+the single-writer lease. Keeping the tool thin is deliberate — an earlier
+version carried its own parallel copy of the discovery/extraction machinery,
+which meant two indexers to keep in step and a graph that could only answer
+"where is this defined?".
+
+Why the graph earns its place over grep:
+
+* ``callers`` / ``callees`` traverse *recorded* call edges, so the answer names
+  the enclosing function rather than every line that happens to contain the
+  text — no noise from comments, strings, or an unrelated same-named symbol.
+* ``impact`` walks those edges transitively: "what breaks if I change this?"
+  answered honestly, including for code reached only through inheritance.
+* ``minimal_context`` turns a task description into a ranked reading list with
+  source excerpts, which is usually the first thing worth doing on a cold repo.
+
+The graph is honest about its limits. An edge whose target cannot be identified
+unambiguously stays unresolved and is reported as such rather than guessed at,
+because a wrong ``callers`` answer sends the agent to edit the wrong file. Text
+that is not a call site — comments, strings, config, dynamically built names —
+is not in the graph, so grep/glob remain the right tool for full-text search.
 """
 
 from __future__ import annotations
 
-import ast
-import os
-import re
-import shutil
-import sqlite3
-import subprocess
-import time
 from collections.abc import Sequence
-from pathlib import Path
-from typing import Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import Field
 
 from openhands.sdk import Action, Observation, ToolDefinition
+from openhands.sdk.codegraph import (
+    CallEdge,
+    CodegraphError,
+    CodegraphQueries,
+    ImpactNode,
+    Symbol,
+)
 from openhands.sdk.tool import ToolAnnotations, ToolExecutor, register_tool
-
 
 if TYPE_CHECKING:
     from openhands.sdk.conversation.state import ConversationState
 
 
-# ---- excludes ---------------------------------------------------------
-
-EXCLUDE_DIRS = {
-    ".git", "node_modules", "vendor", "venv", ".venv", "env",
-    "__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache",
-    "dist", "build", ".next", ".nuxt", "target", ".cache",
-    "coverage", ".tox", ".idea", ".vscode", ".openhands",
-}
-MAX_FILE_BYTES = 1_500_000  # skip parsing (but still track) huge files
-CODE_EXTENSIONS = {
-    ".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".php",
-    ".go", ".rb", ".java", ".cs", ".cpp", ".cc", ".c", ".h", ".hpp",
-    ".rs", ".kt", ".swift", ".vue", ".scala", ".m",
-}
-
-
-def _db_path(working_dir: str) -> Path:
-    d = Path(working_dir) / ".openhands"
-    d.mkdir(parents=True, exist_ok=True)
-    return d / "codegraph.db"
-
-
-def _connect(working_dir: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(_db_path(working_dir)))
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS files (
-            path TEXT PRIMARY KEY,
-            mtime REAL NOT NULL,
-            size INTEGER NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS symbols (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            kind TEXT NOT NULL,
-            file TEXT NOT NULL,
-            line INTEGER NOT NULL,
-            end_line INTEGER,
-            parent TEXT,
-            signature TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
-        CREATE INDEX IF NOT EXISTS idx_symbols_file ON symbols(file);
-        CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
-            name, sym_id UNINDEXED, tokenize='trigram'
-        );
-        """
-    )
-    return conn
-
-
-# ---- file discovery -----------------------------------------------------
-
-
-def _list_files(working_dir: str) -> list[str]:
-    rg = shutil.which("rg")
-    if rg:
-        try:
-            out = subprocess.run(
-                [rg, "--files", "--hidden", "--glob", "!.git/**"],
-                cwd=working_dir,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if out.returncode in (0, 1):  # 1 = no matches, still fine
-                return [
-                    line for line in out.stdout.splitlines() if line.strip()
-                ]
-        except Exception:
-            pass  # fall through to os.walk
-
-    results: list[str] = []
-    for root, dirs, files in os.walk(working_dir):
-        dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
-        for f in files:
-            full = os.path.join(root, f)
-            results.append(os.path.relpath(full, working_dir))
-    return results
-
-
-# ---- symbol extraction ---------------------------------------------------
-
-
-def _extract_python(text: str) -> list[tuple[str, str, int, int | None, str | None, str | None]]:
-    """Return (name, kind, line, end_line, parent, signature) tuples."""
-    out: list[tuple[str, str, int, int | None, str | None, str | None]] = []
-    try:
-        tree = ast.parse(text)
-    except SyntaxError:
-        return out
-
-    def visit(node: ast.AST, parent: str | None) -> None:
-        for child in ast.iter_child_nodes(node):
-            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                args = ", ".join(a.arg for a in child.args.args)
-                sig = f"def {child.name}({args})"
-                kind = "method" if parent else "function"
-                out.append(
-                    (child.name, kind, child.lineno, child.end_lineno, parent, sig)
-                )
-                visit(child, f"{parent}.{child.name}" if parent else child.name)
-            elif isinstance(child, ast.ClassDef):
-                out.append(
-                    (child.name, "class", child.lineno, child.end_lineno, parent, f"class {child.name}")
-                )
-                visit(child, child.name)
-            else:
-                visit(child, parent)
-
-    visit(tree, None)
-    return out
-
-
-_JS_FUNC_RE = re.compile(
-    r"^\s*(?:export\s+(?:default\s+)?)?"
-    r"(?:async\s+)?function\s*\*?\s+([A-Za-z_$][\w$]*)\s*\(",
-    re.MULTILINE,
-)
-_JS_ARROW_RE = re.compile(
-    r"^\s*(?:export\s+(?:default\s+)?)?"
-    r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>",
-    re.MULTILINE,
-)
-_JS_CLASS_RE = re.compile(
-    r"^\s*(?:export\s+(?:default\s+)?)?class\s+([A-Za-z_$][\w$]*)",
-    re.MULTILINE,
-)
-_JS_METHOD_RE = re.compile(
-    r"^\s{2,}(?:public\s+|private\s+|protected\s+|static\s+|async\s+)*"
-    r"([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{",
-    re.MULTILINE,
-)
-
-_PHP_FUNC_RE = re.compile(
-    r"^\s*(?:public\s+|private\s+|protected\s+|static\s+|abstract\s+|final\s+)*"
-    r"function\s*&?\s*([A-Za-z_][\w]*)\s*\(",
-    re.MULTILINE,
-)
-_PHP_CLASS_RE = re.compile(
-    r"^\s*(?:abstract\s+|final\s+)?class\s+([A-Za-z_][\w]*)"
-    r"|^\s*interface\s+([A-Za-z_][\w]*)"
-    r"|^\s*trait\s+([A-Za-z_][\w]*)",
-    re.MULTILINE,
-)
-
-_GENERIC_FUNC_RE = re.compile(
-    r"^\s*(?:func|def|fn|sub)\s+([A-Za-z_][\w]*)\s*\(",
-    re.MULTILINE,
-)
-_GENERIC_CLASS_RE = re.compile(
-    r"^\s*class\s+([A-Za-z_][\w]*)",
-    re.MULTILINE,
-)
-
-
-def _lineno(text: str, pos: int) -> int:
-    return text.count("\n", 0, pos) + 1
-
-
-def _extract_js(text: str) -> list[tuple[str, str, int, None, None, None]]:
-    out: list[tuple[str, str, int, None, None, None]] = []
-    for m in _JS_FUNC_RE.finditer(text):
-        out.append((m.group(1), "function", _lineno(text, m.start()), None, None, None))
-    for m in _JS_ARROW_RE.finditer(text):
-        out.append((m.group(1), "function", _lineno(text, m.start()), None, None, None))
-    for m in _JS_CLASS_RE.finditer(text):
-        out.append((m.group(1), "class", _lineno(text, m.start()), None, None, None))
-    for m in _JS_METHOD_RE.finditer(text):
-        name = m.group(1)
-        if name in ("if", "for", "while", "switch", "catch", "function"):
-            continue
-        out.append((name, "method", _lineno(text, m.start()), None, None, None))
-    return out
-
-
-def _extract_php(text: str) -> list[tuple[str, str, int, None, None, None]]:
-    out: list[tuple[str, str, int, None, None, None]] = []
-    for m in _PHP_FUNC_RE.finditer(text):
-        out.append((m.group(1), "function", _lineno(text, m.start()), None, None, None))
-    for m in _PHP_CLASS_RE.finditer(text):
-        name = m.group(1) or m.group(2) or m.group(3)
-        out.append((name, "class", _lineno(text, m.start()), None, None, None))
-    return out
-
-
-def _extract_generic(text: str) -> list[tuple[str, str, int, None, None, None]]:
-    out: list[tuple[str, str, int, None, None, None]] = []
-    for m in _GENERIC_FUNC_RE.finditer(text):
-        out.append((m.group(1), "function", _lineno(text, m.start()), None, None, None))
-    for m in _GENERIC_CLASS_RE.finditer(text):
-        out.append((m.group(1), "class", _lineno(text, m.start()), None, None, None))
-    return out
-
-
-def _extract(path: str, text: str) -> list:
-    ext = Path(path).suffix.lower()
-    if ext == ".py":
-        return _extract_python(text)
-    if ext in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".vue"):
-        return _extract_js(text)
-    if ext == ".php":
-        return _extract_php(text)
-    if ext in CODE_EXTENSIONS:
-        return _extract_generic(text)
-    return []
-
-
-# ---- incremental index refresh -------------------------------------------
-
-
-def _refresh(conn: sqlite3.Connection, working_dir: str) -> dict:
-    """Incrementally re-scan the project; returns stats about what changed."""
-    disk_files = _list_files(working_dir)
-    disk_set = set(disk_files)
-
-    known = dict(conn.execute("SELECT path, mtime FROM files"))
-    changed = 0
-    removed = 0
-
-    for rel in disk_files:
-        full = os.path.join(working_dir, rel)
-        try:
-            st = os.stat(full)
-        except OSError:
-            continue
-        prev_mtime = known.get(rel)
-        if prev_mtime is not None and abs(prev_mtime - st.st_mtime) < 1e-6:
-            continue  # unchanged
-
-        changed += 1
-        conn.execute("DELETE FROM symbols WHERE file = ?", (rel,))
-        ext = Path(rel).suffix.lower()
-        if ext in CODE_EXTENSIONS and st.st_size <= MAX_FILE_BYTES:
-            try:
-                text = Path(full).read_text(encoding="utf-8", errors="ignore")
-            except OSError:
-                text = ""
-            for name, kind, line, end_line, parent, sig in _extract(rel, text):
-                conn.execute(
-                    "INSERT INTO symbols (name, kind, file, line, end_line, parent, signature)"
-                    " VALUES (?,?,?,?,?,?,?)",
-                    (name, kind, rel, line, end_line, parent, sig),
-                )
-        conn.execute(
-            "INSERT INTO files (path, mtime, size) VALUES (?,?,?)"
-            " ON CONFLICT(path) DO UPDATE SET mtime=excluded.mtime, size=excluded.size",
-            (rel, st.st_mtime, st.st_size),
-        )
-
-    stale = set(known) - disk_set
-    for rel in stale:
-        conn.execute("DELETE FROM files WHERE path = ?", (rel,))
-        conn.execute("DELETE FROM symbols WHERE file = ?", (rel,))
-        removed += 1
-
-    conn.execute("DELETE FROM symbols_fts")
-    conn.execute(
-        "INSERT INTO symbols_fts(name, sym_id) SELECT name, id FROM symbols"
-    )
-    conn.commit()
-    return {"files_scanned": len(disk_files), "files_changed": changed, "files_removed": removed}
-
-
 # ---- tool surface ---------------------------------------------------------
 
-CodeGraphCommand = Literal["search", "definition", "references", "status", "rebuild"]
+CodeGraphCommand = Literal[
+    "search",
+    "definition",
+    "references",
+    "callers",
+    "callees",
+    "impact",
+    "minimal_context",
+    "status",
+    "rebuild",
+]
 
 
 class CodeGraphAction(Action):
-    """Query the project's persistent symbol index (SQLite-backed)."""
+    """Query the project's persistent code graph (SQLite-backed)."""
 
     command: CodeGraphCommand = Field(description="Operation to perform.")
     symbol: str | None = Field(
         default=None,
         description=(
-            "Symbol name (function/class/method). Required for 'search', "
-            "'definition', and 'references'. For 'search', substring match; "
-            "for 'definition'/'references', exact name."
+            "Symbol name. Required for 'search', 'definition', 'references', "
+            "'callers', 'callees' and 'impact'. 'search' is a substring match; "
+            "the others match the name exactly. Method calls may be given "
+            "qualified, e.g. 'Store.refresh'."
         ),
     )
-    limit: int = Field(default=30, description="Max results to return.")
+    task: str | None = Field(
+        default=None,
+        description=(
+            "Required for 'minimal_context': a short description of what you "
+            "are trying to do, e.g. 'fix pagination in the kanban board'."
+        ),
+    )
+    depth: int = Field(
+        default=3,
+        ge=1,
+        le=5,
+        description="How many hops to walk for 'impact' (1 = direct callers).",
+    )
+    limit: int = Field(
+        default=30,
+        ge=1,
+        le=200,
+        description="Max results to return.",
+    )
 
 
 class CodeGraphObservation(Observation):
     """Result of a codegraph query."""
+
+
+def _format_symbol(symbol: Symbol) -> str:
+    location = f"{symbol.file_path}:{symbol.start_line}"
+    if symbol.end_line:
+        location += f"-{symbol.end_line}"
+    parent = f" (in {symbol.parent})" if symbol.parent else ""
+    signature = f" — {symbol.signature}" if symbol.signature else ""
+    return f"{symbol.kind} {symbol.qualified_name}{parent} @ {location}{signature}"
+
+
+def _format_edge(edge: CallEdge) -> str:
+    """Render one call edge as a jump target.
+
+    Unresolved targets are marked rather than hidden: "this calls into something
+    I cannot see" is worth knowing, and it is the common case for a call into a
+    third-party library.
+    """
+    if edge.resolved and edge.dst_file:
+        target = f"{edge.dst_file}:{edge.dst_line}"
+    else:
+        target = "external/unresolved"
+    if edge.kind == "inherits":
+        relation = f"inherits {edge.callee_name}"
+    else:
+        relation = edge.callee_name
+    return f"{edge.src_name} -> {relation} @ {edge.src_file}:{edge.src_line} ({target})"
+
+
+def _format_impact(node: ImpactNode) -> str:
+    indent = "  " * node.depth
+    return (
+        f"{indent}d{node.depth} {node.kind} {node.qualified_name} "
+        f"@ {node.file_path}:{node.start_line}"
+    )
 
 
 class CodeGraphExecutor(ToolExecutor[CodeGraphAction, CodeGraphObservation]):
@@ -351,158 +145,183 @@ class CodeGraphExecutor(ToolExecutor[CodeGraphAction, CodeGraphObservation]):
         action: CodeGraphAction,
         conversation=None,  # noqa: ARG002
     ) -> CodeGraphObservation:
-        conn = _connect(self.working_dir)
+        queries = CodegraphQueries(self.working_dir)
         try:
-            if action.command == "rebuild":
-                conn.execute("DELETE FROM files")
-                conn.execute("DELETE FROM symbols")
-                conn.commit()
-
-            t0 = time.monotonic()
-            stats = _refresh(conn, self.working_dir)
-            elapsed = time.monotonic() - t0
-
-            if action.command in ("rebuild", "status"):
-                n_files = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
-                n_symbols = conn.execute("SELECT COUNT(*) FROM symbols").fetchone()[0]
-                return CodeGraphObservation.from_text(
-                    f"CodeGraph @ {self.working_dir}\n"
-                    f"files indexed: {n_files} | symbols: {n_symbols}\n"
-                    f"last refresh: scanned {stats['files_scanned']}, "
-                    f"changed {stats['files_changed']}, removed {stats['files_removed']} "
-                    f"({elapsed:.2f}s)"
-                )
-
-            if action.command == "search":
-                if not action.symbol:
-                    return CodeGraphObservation.from_text(
-                        "Missing 'symbol' for search."
-                    )
-                rows = conn.execute(
-                    """
-                    SELECT s.name, s.kind, s.file, s.line, s.parent
-                    FROM symbols_fts f
-                    JOIN symbols s ON s.id = f.sym_id
-                    WHERE symbols_fts MATCH ?
-                    ORDER BY s.name
-                    LIMIT ?
-                    """,
-                    (action.symbol, action.limit),
-                ).fetchall()
-                if not rows:
-                    # trigram FTS needs >=3 chars; fall back to LIKE for short queries
-                    rows = conn.execute(
-                        "SELECT name, kind, file, line, parent FROM symbols"
-                        " WHERE name LIKE ? ORDER BY name LIMIT ?",
-                        (f"%{action.symbol}%", action.limit),
-                    ).fetchall()
-                if not rows:
-                    return CodeGraphObservation.from_text(
-                        f"No symbols matching '{action.symbol}' in the codegraph index. "
-                        "Fall back to the grep/glob tools for a full-text search "
-                        "(the symbol may be dynamically generated, in an unindexed "
-                        "file type, or the name may be different)."
-                    )
-                lines = [
-                    f"{k}: {n}" + (f" (in {p})" if p else "") + f" — {f}:{ln}"
-                    for n, k, f, ln, p in rows
-                ]
-                return CodeGraphObservation.from_text("\n".join(lines))
-
-            if action.command == "definition":
-                if not action.symbol:
-                    return CodeGraphObservation.from_text(
-                        "Missing 'symbol' for definition."
-                    )
-                rows = conn.execute(
-                    "SELECT name, kind, file, line, end_line, parent, signature"
-                    " FROM symbols WHERE name = ? LIMIT ?",
-                    (action.symbol, action.limit),
-                ).fetchall()
-                if not rows:
-                    return CodeGraphObservation.from_text(
-                        f"No exact definition of '{action.symbol}' in the codegraph "
-                        "index. Try 'search' for near matches, or fall back to grep."
-                    )
-                lines = []
-                for n, k, f, ln, end_ln, p, sig in rows:
-                    loc = f"{f}:{ln}" + (f"-{end_ln}" if end_ln else "")
-                    extra = f" — {sig}" if sig else ""
-                    parent_s = f" (in {p})" if p else ""
-                    lines.append(f"{k} {n}{parent_s} @ {loc}{extra}")
-                return CodeGraphObservation.from_text("\n".join(lines))
-
-            if action.command == "references":
-                if not action.symbol:
-                    return CodeGraphObservation.from_text(
-                        "Missing 'symbol' for references."
-                    )
-                matches = _search_references(self.working_dir, action.symbol, action.limit)
-                if not matches:
-                    return CodeGraphObservation.from_text(
-                        f"No references to '{action.symbol}' found. Fall back to "
-                        "grep if you expect matches in excluded paths (e.g. "
-                        "node_modules, vendor)."
-                    )
-                return CodeGraphObservation.from_text("\n".join(matches))
-
-            return CodeGraphObservation.from_text(f"Unknown command: {action.command}")
-        finally:
-            conn.close()
-
-
-def _search_references(working_dir: str, symbol: str, limit: int) -> list[str]:
-    rg = shutil.which("rg")
-    if rg:
-        try:
-            out = subprocess.run(
-                [rg, "--line-number", "--fixed-strings", "--hidden",
-                 "--glob", "!.git/**", "--max-count", "500", symbol],
-                cwd=working_dir,
-                capture_output=True,
-                text=True,
-                timeout=30,
+            return self._dispatch(queries, action)
+        except CodegraphError as exc:
+            # Two causes, one recovery path worth naming: a lease conflict is
+            # transient (retry works), an unreadable index is not (rebuild does).
+            return CodeGraphObservation.from_text(
+                f"CodeGraph could not serve this query: {exc} Retry the command; "
+                "if it keeps failing, run command='rebuild' to recreate the "
+                "index, or fall back to the grep/glob tools."
             )
-            lines = [line for line in out.stdout.splitlines() if line.strip()]
-            return lines[:limit]
-        except Exception:
-            pass
+        except OSError as exc:
+            return CodeGraphObservation.from_text(
+                f"CodeGraph could not read the index ({exc}). Fall back to the "
+                "grep/glob tools for this lookup."
+            )
 
-    results: list[str] = []
-    for root, dirs, files in os.walk(working_dir):
-        dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
-        for fname in files:
-            if Path(fname).suffix.lower() not in CODE_EXTENSIONS:
-                continue
-            full = os.path.join(root, fname)
-            try:
-                with open(full, encoding="utf-8", errors="ignore") as fh:
-                    for i, line in enumerate(fh, 1):
-                        if symbol in line:
-                            rel = os.path.relpath(full, working_dir)
-                            results.append(f"{rel}:{i}:{line.rstrip()}")
-                            if len(results) >= limit:
-                                return results
-            except OSError:
-                continue
-    return results
+    def _dispatch(
+        self, queries: CodegraphQueries, action: CodeGraphAction
+    ) -> CodeGraphObservation:
+        command = action.command
+
+        if command == "status":
+            state, stats = queries.status()
+            if stats is None:
+                return CodeGraphObservation.from_text(
+                    f"CodeGraph status: {state} — no index yet. It builds "
+                    "automatically on the first query."
+                )
+            return CodeGraphObservation.from_text(
+                f"CodeGraph status: {state}\n"
+                f"files={stats.file_count} symbols={stats.symbol_count} "
+                f"edges={stats.edge_count} "
+                f"resolved={stats.resolved_edge_count}\n"
+                f"last_indexed={stats.last_indexed} "
+                f"pending_changes={stats.pending_changes}"
+            )
+
+        if command == "rebuild":
+            queries.rebuild()
+            _state, stats = queries.status()
+            indexed = f"{stats.symbol_count} symbols" if stats else "no symbols"
+            return CodeGraphObservation.from_text(
+                f"CodeGraph rebuilt from scratch: indexed {indexed}."
+            )
+
+        if command == "minimal_context":
+            if not action.task:
+                return CodeGraphObservation.from_text(
+                    "Missing 'task' for minimal_context — pass a short "
+                    "description of what you are trying to do."
+                )
+            context = queries.minimal_context(action.task, max_files=action.limit)
+            if not context.files:
+                terms = context.terms or "none"
+                return CodeGraphObservation.from_text(
+                    f"No indexed symbols matching the task '{action.task}' "
+                    f"(terms tried: {terms}). Try 'search' with a distinctive "
+                    "name, or grep."
+                )
+            blocks = []
+            for file in context.files:
+                header = f"## {file.file_path} — {', '.join(file.symbols)}"
+                blocks.append("\n".join([header, *file.excerpts]))
+            return CodeGraphObservation.from_text("\n\n".join(blocks))
+
+        if not action.symbol:
+            return CodeGraphObservation.from_text(f"Missing 'symbol' for {command}.")
+
+        symbol = action.symbol
+
+        if command == "search":
+            hits = queries.search(symbol, limit=action.limit)
+            if not hits:
+                return CodeGraphObservation.from_text(
+                    f"No symbols matching '{symbol}' in the codegraph index. "
+                    "Fall back to the grep/glob tools for full-text search — "
+                    "the symbol may be dynamically generated, in an unindexed "
+                    "file type, or named differently."
+                )
+            return CodeGraphObservation.from_text(
+                "\n".join(
+                    f"{h.kind} {h.qualified_name} @ {h.file_path}:{h.start_line} "
+                    f"(matched on {h.matched_on})"
+                    for h in hits
+                )
+            )
+
+        if command == "definition":
+            symbols = queries.definition(symbol, limit=action.limit)
+            if not symbols:
+                return CodeGraphObservation.from_text(
+                    f"No definition of '{symbol}' in the codegraph index. Try "
+                    "'search' for near matches, or fall back to grep if it "
+                    "comes from outside the indexed tree."
+                )
+            return CodeGraphObservation.from_text(
+                "\n".join(_format_symbol(s) for s in symbols)
+            )
+
+        if command in ("references", "callers", "callees"):
+            if command == "references":
+                edges = queries.references(symbol, limit=action.limit)
+            elif command == "callers":
+                edges = queries.callers(symbol, limit=action.limit)
+            else:
+                edges = queries.callees(symbol, limit=action.limit)
+
+            if not edges:
+                if command == "callers":
+                    extra = (
+                        " Either nothing in the index calls it, or its callers "
+                        "live outside the indexed tree."
+                    )
+                elif command == "callees":
+                    extra = (
+                        " It may be a leaf function, or the index may not have "
+                        "recorded its call sites."
+                    )
+                else:
+                    extra = (
+                        " grep with --fixed-strings still finds it in comments, "
+                        "strings or unindexed files."
+                    )
+                return CodeGraphObservation.from_text(
+                    f"No recorded call sites for '{symbol}'." + extra
+                )
+            return CodeGraphObservation.from_text(
+                "\n".join(_format_edge(e) for e in edges)
+            )
+
+        if command == "impact":
+            nodes = queries.impact(symbol, depth=action.depth, limit=action.limit)
+            if not nodes:
+                return CodeGraphObservation.from_text(
+                    f"Nothing in the index reaches '{symbol}', so no impact "
+                    f"found within depth {action.depth}. Either it is an entry "
+                    "point, or its callers live outside the indexed tree."
+                )
+            return CodeGraphObservation.from_text(
+                f"Symbols that reach '{symbol}' (depth {action.depth}):\n"
+                + "\n".join(_format_impact(n) for n in nodes)
+            )
+
+        return CodeGraphObservation.from_text(f"Unknown command: {action.command}")
 
 
-_CODEGRAPH_DESCRIPTION = """Query this project's persistent, SQLite-backed symbol index — a lightweight code graph of function/class/method definitions kept up to date incrementally on every call (no manual build step).
+_CODEGRAPH_DESCRIPTION = """\
+Query the project's code knowledge graph: symbols **and the call edges between
+them**, indexed once and refreshed incrementally, so you can jump straight to an
+answer instead of re-scanning the tree with grep/glob.
 
-Prefer this tool FIRST whenever you need to:
-* find where a function/class/method is DEFINED → command="definition", symbol="<exact name>"
-* find symbols by partial name → command="search", symbol="<substring>"
-* find where a symbol is USED/called elsewhere → command="references", symbol="<exact name>"
-* check index size/health → command="status"
-* force a full reindex if results look stale → command="rebuild"
+Prefer codegraph for:
+- 'definition' — where is this symbol defined (exact name).
+- 'callers' — what calls this function. Use before editing a shared function.
+- 'callees' — what this function calls. Use to see what it depends on.
+- 'impact' — everything that transitively reaches a symbol, so you can tell what
+  might break. Walks inheritance as well as calls, so overrides and
+  implementations are included.
+- 'references' — the recorded call sites naming a symbol, each with the
+  enclosing function.
+- 'search' — substring lookup when you only half-remember a name.
+- 'minimal_context' — given a task description, get a ranked reading list with
+  source excerpts. The cheapest way to orient in unfamiliar code.
+- 'status' / 'rebuild' — inspect or recover the index (it also builds itself
+  automatically on the first query).
 
-Only fall back to the grep/glob tools when:
-* codegraph returns no results and you suspect the symbol is dynamically
-  generated, string-built, or lives in a file type the index doesn't parse,
-* you need full-text search unrelated to a symbol name (config values,
-  comments, log strings), or
-* you need to search inside excluded paths (node_modules, vendor, .git).
+Use grep/glob instead for:
+- Full-text search: comments, strings, config values, log messages. The graph
+  records *calls*, not every occurrence of a name.
+- Dynamically generated or reflection-based names.
+- Files in excluded paths (node_modules, vendor, .git, dist, build...).
+
+Output is honest about uncertainty: a call whose target cannot be identified
+unambiguously is shown as 'external/unresolved' rather than attributed to a
+symbol that merely shares the name. An empty result means the index holds no
+such edge — not that the code does not exist.
 
 The index lives at <project>/.openhands/codegraph.db, scoped to the current
 project only — each project (including on machines hosting several projects)
@@ -510,7 +329,7 @@ gets its own isolated graph, never mixed with another project's symbols."""
 
 
 class CodeGraphTool(ToolDefinition[CodeGraphAction, CodeGraphObservation]):
-    """Tool for querying the project's SQLite-backed code graph."""
+    """Tool for querying the project's code graph."""
 
     @classmethod
     def create(
