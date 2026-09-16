@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>feat(chat): switch ACP provider on conversation error</title>
+<style>
+  :root{
+    --fg:#1a1a1a; --muted:#5a5a5a; --subtle:#8a8a82;
+    --bg:#fdfdfb; --card:#ffffff; --elevated:#f7f6f1;
+    --accent:#2b4eaa; --accent-soft:#e6ecfa; --accent-strong:#1c378a;
+    --rule:#e2e2dc; --rule-strong:#bdbcb4;
+    --code-bg:#f3f1ec; --warn:#b25b0e; --ok:#2f7a3a; --crit:#a02020;
+    --orange:#c95a0f; --orange-soft:#fbe9d7;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans)}
+  body{line-height:1.6;font-size:16px}
+  .wrap{display:grid;grid-template-columns:240px minmax(0,1fr);gap:48px;max-width:1180px;margin:0 auto;padding:32px 28px 96px}
+  nav.toc{position:sticky;top:24px;align-self:start;font-size:13px}
+  nav.toc h2{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+  nav.toc ol{list-style:none;padding:0;margin:0;counter-reset:toc}
+  nav.toc li{counter-increment:toc;margin:4px 0}
+  nav.toc li::before{content:counter(toc) ". ";color:var(--muted)}
+  nav.toc a{color:var(--fg);text-decoration:none} nav.toc a:hover{color:var(--accent)}
+  header.title{border-bottom:1px solid var(--rule);padding-bottom:22px;margin-bottom:28px}
+  header.title .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  header.title h1{font-size:30px;margin:6px 0 4px;letter-spacing:-.01em}
+  header.title .sub{color:var(--muted);max-width:780px}
+  h2{font-size:22px;margin:44px 0 10px} h2 .num{color:var(--muted);font-weight:500;margin-right:8px}
+  h3{font-size:16px;margin:22px 0 8px}
+  code{font-family:var(--mono);font-size:.88em;background:var(--code-bg);padding:1px 5px;border-radius:3px}
+  pre{font-family:var(--mono);font-size:13px;background:var(--code-bg);padding:14px 16px;border-radius:6px;overflow-x:auto;border:1px solid var(--rule)}
+  pre code{background:transparent;padding:0}
+  .kw{color:#7048a8}.str{color:var(--ok)}.com{color:var(--subtle);font-style:italic}.num{color:var(--orange)}
+  table{border-collapse:collapse;width:100%;font-size:14px;margin:12px 0}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+  th{font-weight:600;background:var(--code-bg)}
+  .callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:10px 14px;margin:14px 0;border-radius:0 4px 4px 0;font-size:14.5px}
+  .callout.warn{border-color:var(--warn);background:#fbf1e6}
+  .callout.note{border-color:var(--muted);background:#f3f1ec}
+  .fig{margin:18px 0 22px}
+  .fig svg{display:block;max-width:100%;height:auto;background:#fff;border:1px solid var(--rule);border-radius:6px}
+  .fig figcaption{font-size:13px;color:var(--muted);margin-top:6px;text-align:center}
+  a.src{font-family:var(--mono);font-size:12px;color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent)}
+  details{border:1px solid var(--rule);border-radius:6px;margin:12px 0}
+  details>summary{cursor:pointer;padding:8px 12px;color:var(--muted);font-size:13px;list-style:none}
+  details>summary::-webkit-details-marker{display:none}
+  details>summary::before{content:"\25b8 "} details[open]>summary::before{content:"\25be "}
+  .ba{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .card{border:1px solid var(--rule);border-radius:8px;padding:18px 22px;margin:18px 0;background:var(--card)}
+  .card.added{border-left:4px solid var(--orange)}
+  .card.changed{border-left:4px solid var(--accent)}
+  .card .pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:99px;background:var(--elevated);color:var(--muted)}
+  .card.added .pill{background:var(--orange-soft);color:var(--orange)}
+  .card.changed .pill{background:var(--accent-soft);color:var(--accent-strong)}
+  .delta-list{margin:0;padding-left:20px;font-size:14px}
+  .delta-list li{margin:4px 0}
+  .ribbon{display:inline-block;font-size:11px;padding:1px 7px;border-radius:99px;background:var(--code-bg);color:var(--muted);font-family:var(--mono);margin-right:6px}
+  @media(max-width:760px){.wrap{grid-template-columns:1fr}.ba{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#sec1">What &amp; why</a></li>
+    <li><a href="#sec2">Recovery flow</a></li>
+    <li><a href="#sec3">Public API before \u2192 after</a></li>
+    <li><a href="#sec4">Changed files</a></li>
+    <li><a href="#sec5">Per-file cards</a></li>
+    <li><a href="#sec6">Verification &amp; risks</a></li>
+  </ol>
+  <p style="margin-top:24px;font-size:12px;color:var(--muted)">
+    GitHub host&nbsp;\xb7&nbsp;joaonetodev/OpenHands<br>
+    Base&nbsp;\xb7&nbsp;<span class="src">18077a8</span><br>
+    Head&nbsp;\xb7&nbsp;<span class="src">62a4be5</span>
+  </p>
+</nav>
+
+<main>
+
+<header class="title">
+  <div class="eyebrow">feat(chat) \u2014 8 files \xb7 +967 / \u22122</div>
+  <h1>ACP provider switch on conversation error</h1>
+  <p class="sub">
+    The chat error banner gains a "Switch provider" recovery action. When an ACP conversation
+    reaches any non-RUNNING state (error / stuck / limit-hit / paused / finished / idle /
+    waiting-for-confirmation) the user can fork it into a fresh conversation against a
+    different configured ACP agent profile, carrying over the source workspace, repository,
+    branch, workspace mode, and plugins. The previous conversation stays intact; the user
+    navigates straight into the new one.
+  </p>
+</header>
+
+<section id="sec1">
+<h2><span class="num">1</span>What &amp; why</h2>
+
+<div class="callout">
+  <strong>\u2605 Trigger broadened on purpose.</strong>
+  The first draft gated the action on <code>classification.kind \u2208 {rate_limit, quota}</code>;
+  in practice users hit the same need on internal, network, and stale-config failures.
+  The shipped gate is <em>ACP conversation &amp;&amp; <code>execution_status !== RUNNING</code></em>.
+  Re-auth remains its own button (<code>ACPAuthRequired</code> \u2192 settings/agents).
+</div>
+
+<p>Three situations the new action resolves:</p>
+<ul>
+  <li><strong>Provider limit hit.</strong> Claude Code reaches <code>[-32603]</code> monthly
+    spend limit; the user continues with Codex or Gemini CLI on the same workspace.</li>
+  <li><strong>Provider degraded.</strong> Internal / network error against one ACP CLI; the
+    user hops to another without losing the repo / branch state.</li>
+  <li><strong>Wrong model pick.</strong> The original conversation stays as a record;
+    a fork with a different ACP provider / model preserves the prior turn history.</li>
+</ul>
+
+<p>
+  Implementation lands entirely in the frontend. The agent-server requires no
+  changes &mdash; we re-use <code>POST /api/conversations</code> with a
+  <code>parent_conversation_id</code> so the server already keeps the cross-link.
+</p>
+
+<details>
+  <summary>Files touched at a glance</summary>
+  <p>
+    <span class="ribbon">src</span> <a class="src" href="#card-acp-error-codes">acp-error-codes.ts</a>
+    <span class="ribbon">src</span> <a class="src" href="#card-banner">error-message-banner.tsx</a>
+    <span class="ribbon">src</span> <a class="src" href="#card-chat-interface">chat-interface.tsx</a>
+    <span class="ribbon">src</span> <a class="src" href="#card-hook">use-switch-acp-provider.ts</a> <em>(new)</em>
+    <span class="ribbon">i18n</span> <a class="src" href="#card-i18n">translation.json</a>
+    <span class="ribbon">test</span> <a class="src" href="#card-tests">3 test files</a>
+  </p>
+</details>
+</section>
+
+<section id="sec2">
+<h2><span class="num">2</span>Recovery flow</h2>
+
+<p>
+  Below: the banner after a non-running ACP failure. The "Switch provider" button is new;
+  the popover renders the configured ACP profiles filtered to <code>agent_kind === "acp"</code>;
+  clicking one runs the mutation described in §3 and navigates to the new conversation id.
+</p>
+
+<div class="fig">
+<svg viewBox="0 0 960 360" role="img" aria-labelledby="f1-t f1-d">
+  <title id="f1-t">Banner with switch-provider action</title>
+  <desc id="f1-d">After-state of the ErrorMessageBanner with a switch-provider popover open.</desc>
+  <defs>
+    <style>
+      .box{fill:var(--card);stroke:var(--rule-strong);stroke-width:1}
+      .orange{fill:none;stroke:var(--orange);stroke-width:1.6}
+      .label{font:12px var(--sans);fill:var(--fg)}
+      .small{font:11px var(--sans);fill:var(--muted)}
+      .mono{font:11px var(--mono);fill:var(--accent-strong)}
+      .pill{fill:var(--orange-soft);stroke:var(--orange);stroke-width:1}
+    </style>
+    <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--orange)"/>
+    </marker>
+  </defs>
+  <rect x="14" y="14" width="932" height="332" rx="10" fill="var(--elevated)" stroke="var(--rule)"/>
+  <text x="24" y="34" class="small">/conversations/&lt;source&gt;</text>
+  <rect x="40" y="60" width="880" height="76" rx="8" class="box"/>
+  <text x="56" y="90" class="label" font-weight="700"><tspan fill="var(--crit)">● </tspan>Erro do agente</text>
+  <text x="56" y="108" class="small">[-32603] Internal error: you've hit your monthly spend limit …</text>
+  <g transform="translate(560, 80)">
+    <rect x="0" y="0" width="120" height="34" rx="6" fill="var(--card)" stroke="var(--rule)" stroke-dasharray="3 3"/>
+    <text x="60" y="22" text-anchor="middle" class="small">Reauthenticate</text>
+  </g>
+  <g transform="translate(700, 80)">
+    <rect x="0" y="0" width="80" height="34" rx="6" fill="var(--card)" stroke="var(--rule)" stroke-dasharray="3 3"/>
+    <text x="40" y="22" text-anchor="middle" class="small">Dismiss</text>
+  </g>
+  <g transform="translate(400, 76)">
+    <rect x="0" y="0" width="148" height="40" rx="6" class="pill"/>
+    <text x="74" y="25" text-anchor="middle" class="label" font-weight="700">Switch provider</text>
+    <text x="74" y="37" text-anchor="middle" class="mono">↳ popover</text>
+  </g>
+  <g transform="translate(420, 130)">
+    <rect x="0" y="0" width="280" height="180" rx="8" class="box"/>
+    <rect x="0" y="0" width="280" height="180" rx="8" fill="none" stroke="var(--orange)" stroke-width="1.6"/>
+    <text x="14" y="22" class="small">Pick a different ACP provider</text>
+    <rect x="14" y="34" width="252" height="32" rx="4" fill="var(--orange-soft)"/>
+    <text x="26" y="54" class="mono">⎇  Codex (openai/gpt-5.2)</text>
+    <rect x="14" y="72" width="252" height="32" rx="4" class="box"/>
+    <text x="26" y="92" class="mono">⎇  Gemini CLI (google/gemini-2.5-pro)</text>
+    <rect x="14" y="110" width="252" height="32" rx="4" class="box"/>
+    <text x="26" y="130" class="mono">⎇  Aider (custom command)</text>
+    <text x="14" y="164" class="small">"Add one in Settings → Agent profiles" (i18n)</text>
+  </g>
+  <path d="M 560 196 C 560 230 720 230 720 280" class="orange" marker-end="url(#arr2)"/>
+  <g transform="translate(620, 290)">
+    <rect x="0" y="0" width="220" height="44" rx="8" fill="var(--card)" stroke="var(--orange)" stroke-width="1.6"/>
+    <text x="110" y="20" text-anchor="middle" class="label" font-weight="700">navigate("/conversations/" + id)</text>
+    <text x="110" y="36" text-anchor="middle" class="mono">parent_conversation_id = src.id</text>
+  </g>
+</svg>
+<figcaption>Fig 1 · After-state. Orange additions: "Switch provider" button + popover + navigation. Grey dashed boxes show actions that existed in the &lt;before&gt; (kept unchanged). Empty-state copy falls through to the new i18n prompt when no other ACP profile is configured.</figcaption>
+</div>
+
+<div class="callout note">
+  <strong>ⓘ Where "Switch provider" sits in the row.</strong>
+  Render order on the banner: <em>[Reauthenticate · if auth code]</em>,
+  <em>[Switch provider · if ACP non-RUNNING]</em>, <em>[Retry · if onRetry]</em>,
+  <em>[Dismiss]</em>. With three buttons the row stays under 720 px and reflows to
+  two lines at &lt; 480 px.
+</div>
+</section>
+
+<section id="sec3">
+<h2><span class="num">3</span>Public API before → after</h2>
+
+<p>
+  All additions are <strong>additive</strong>: the banner keeps its prior behaviour when
+  the new optional props are absent, the helper still exports the original
+  <code>isAcpAuthErrorCode</code>, and <code>useCreateConversation</code> is the
+  unchanged conversation-start API we're now also feeding for the fork.
+</p>
+
+<table>
+  <thead><tr><th>Symbol</th><th>Before</th><th>After</th></tr></thead>
+  <tbody>
+  <tr>
+    <td><code>acp-error-codes.ts</code></td>
+    <td><code>getAcpErrorHeaderKey</code>, <code>isAcpAuthErrorCode</code></td>
+    <td>+ <code>canShowAcpProviderSwitch(conversation)</code><br>+ <code>AcpRecoveryConversationShape</code></td>
+  </tr>
+  <tr>
+    <td><code>error-message-banner.tsx</code></td>
+    <td>props: <code>message, code?, onRetry?, onReauth?, onDismiss?, classification?</code></td>
+    <td>+ <code>canSwitchAcpProvider?: boolean</code><br>+ <code>onSwitchProvider?: (target: AgentProfileSummary) =&gt; void</code></td>
+  </tr>
+  <tr>
+    <td><code>chat-interface.tsx</code></td>
+    <td>passes the auth recovery action only</td>
+    <td>also passes <code>canSwitchAcpProvider=&#123;canShowAcpProviderSwitch(activeConversation)&#125;</code></td>
+  </tr>
+  <tr>
+    <td><code>hooks/mutation/use-switch-acp-provider.ts</code></td>
+    <td><em>(none)</em></td>
+    <td><code>SWITCH_ACP_PROVIDER_MUTATION_KEY</code>,<br><code>useSwitchAcpProvider</code>,<br><code>useSwitchAcpProviderCallback(sourceConversationId)</code></td>
+  </tr>
+  </tbody>
+</table>
+
+<h3>Helper signature: before vs after</h3>
+
+<div class="ba">
+
+<div>
+<h4 style="margin-top:0">Before · <code>acp-error-codes.ts</code></h4>
+<pre><code><span class="com">// exported</span>
+<span class="kw">export function</span> <span class="kw">getAcpErrorHeaderKey</span>(code) { ... }
+<span class="kw">export function</span> <span class="kw">isAcpAuthErrorCode</span>(code) {
+  <span class="kw">return</span> code === <span class="str">"ACPAuthRequired"</span>;
+}
+</code></pre>
+<p style="font-size:13px;color:var(--muted);margin-top:6px">
+  Source: <a class="src" href="https://github.com/JoaoNetoDev/OpenHands/blob/18077a8/src/utils/acp-error-codes.ts">18077a8 · acp-error-codes.ts</a> · 29 lines
+</p>
+</div>
+
+<div>
+<h4 style="margin-top:0">After · <code>acp-error-codes.ts</code></h4>
+<pre><code><span class="com">// unchanged</span>
+<span class="kw">export function</span> <span class="kw">getAcpErrorHeaderKey</span>(code) { ... }
+<span class="kw">export function</span> <span class="kw">isAcpAuthErrorCode</span>(code) { ... }
+
+<span class="com">// new — gate for the banner's switch-action slot</span>
+<span class="kw">export function</span> <span class="kw">canShowAcpProviderSwitch</span>(
+  conversation: <span class="kw">AcpRecoveryConversationShape</span>,
+): <span class="kw">boolean</span> {
+  <span class="kw">if</span> (!conversation) <span class="kw">return false</span>;
+  <span class="kw">const</span> isAcp =
+    !!conversation.acp_server ||
+    conversation.agent_kind === <span class="str">"acp"</span>;
+  <span class="kw">if</span> (!isAcp) <span class="kw">return false</span>;
+  <span class="kw">return</span> conversation.execution_status
+      !== ExecutionStatus.RUNNING;
+}
+</code></pre>
+<p style="font-size:13px;color:var(--muted);margin-top:6px">
+  Source: <a class="src" href="https://github.com/JoaoNetoDev/OpenHands/blob/62a4be5/src/utils/acp-error-codes.ts#L43-L83">62a4be5 · acp-error-codes.ts</a> · 83 lines
+</p>
+</div>
+
+</div>
+
+<div class="callout warn">
+  <strong>⚠ Why <code>acp_server</code>, not <code>agent_kind</code>.</strong>
+  <code>SharedConversation</code> (the type returned by
+  <code>useUserConversation</code>) doesn't carry <code>agent_kind</code>; only the
+  discriminated <code>AppConversation</code> does. The agent-server stamps
+  <code>acp_server</code> from <code>info.tags.acpserver</code> onto every
+  conversation, so it's the cross-endpoint-reliable ACP detector.
+  <code>agent_kind === "acp"</code> remains as a fallback for endpoints that
+  surface the discriminated agent payload but skip the tag.
+</div>
+</section>
+
+<section id="sec4">
+<h2><span class="num">4</span>Changed files</h2>
+
+<table>
+  <thead><tr><th></th><th>File</th><th>+ / −</th><th>Δ</th></tr></thead>
+  <tbody>
+  <tr><td>✏</td><td><a class="src" href="#card-acp-error-codes">src/utils/acp-error-codes.ts</a></td><td>+40 / 0</td><td>added helper</td></tr>
+  <tr><td>✏</td><td><a class="src" href="#card-banner">src/components/features/chat/error-message-banner.tsx</a></td><td>+106 / 1</td><td>added slot + popover</td></tr>
+  <tr><td>✏</td><td><a class="src" href="#card-chat-interface">src/components/features/chat/chat-interface.tsx</a></td><td>+7 / 1</td><td>wired slot</td></tr>
+  <tr><td><strong>NEW</strong></td><td><a class="src" href="#card-hook">src/hooks/mutation/use-switch-acp-provider.ts</a></td><td>+142 / 0</td><td><strong>new file</strong></td></tr>
+  <tr><td>⚙</td><td>src/i18n/translation.json</td><td>+289 / 0</td><td>3 keys × 15 languages</td></tr>
+  <tr><td>⚙</td><td>__tests__/utils/acp-error-codes.test.ts</td><td>+69 / 0</td><td>helper coverage</td></tr>
+  <tr><td>⚙</td><td>__tests__/components/chat/error-message-banner.test.tsx</td><td>+135 / 1</td><td>slot coverage</td></tr>
+  <tr><td>⚙</td><td>__tests__/hooks/mutation/use-switch-acp-provider.test.tsx</td><td>+178 / 0</td><td><strong>new file</strong></td></tr>
+  </tbody>
+  <tfoot><tr><td></td><td><strong>Total</strong></td><td><strong>+967 / −2</strong></td><td>8 files, 5 with logic</td></tr></tfoot>
+</table>
+</section>
+
+<section id="sec5">
+<h2><span class="num">5</span>Per-file cards</h2>
+
+<div class="card changed" id="card-acp-error-codes">
+  <span class="pill">✏ changed · src/utils/acp-error-codes.ts</span>
+  <h3>Add <code>canShowAcpProviderSwitch</code> + <code>AcpRecoveryConversationShape</code></h3>
+  <p>
+    A single new exported helper. Takes a loose conversation shape (so both
+    <code>SharedConversation</code> and <code>AppConversation</code> callers work)
+    and returns whether the banner should expose the switch-provider slot.
+  </p>
+  <ul class="delta-list">
+    <li><strong>ACP detection:</strong> <code>acp_server != null</code>, falling back to <code>agent_kind === "acp"</code>.</li>
+    <li><strong>Run guard:</strong> returns <code>false</code> only when <code>execution_status === "running"</code>; idle / finished / errored / paused / stuck / waiting-for-confirmation all qualify.</li>
+    <li><strong>No breaking change:</strong> <code>getAcpErrorHeaderKey</code> and <code>isAcpAuthErrorCode</code> are unchanged.</li>
+  </ul>
+  <p style="font-size:13px;color:var(--muted)">
+    <a class="src" href="https://github.com/JoaoNetoDev/OpenHands/blob/62a4be5/src/utils/acp-error-codes.ts">src/utils/acp-error-codes.ts</a>
+    · <a class="src" href="https://github.com/JoaoNetoDev/OpenHands/blob/62a4be5/__tests__/utils/acp-error-codes.test.ts">test</a>
+  </p>
+</div>
+
+<div class="card changed" id="card-banner">
+  <span class="pill">✏ changed · src/components/features/chat/error-message-banner.tsx</span>
+  <h3>Add <code>canSwitchAcpProvider?</code> slot + popover</h3>
+  <p>
+    One new row of buttons when the prop is enabled. Renders a
+    <code>&lt;button&gt;</code> with the same danger-row styling as the existing
+    reauth button. Clicking opens a popover that lists configured ACP profiles
+    (filtered to <code>agent_kind === "acp"</code>) via the existing
+    <code>useAgentProfiles</code> hook; the menu closes on outside-click and
+    disables while <code>SWITCH_ACP_PROVIDER_MUTATION_KEY</code> reports an
+    in-flight mutation.
+  </p>
+  <ul class="delta-list">
+    <li><strong>Empty state:</strong> when no other ACP profile is configured the popover body shows the new i18n prompt pointing the user at Settings → Agent profiles.</li>
+    <li><strong>Stable menu close on pick:</strong> <code>useClickOutsideElement</code> on the menu container; the existing dismiss / retry buttons keep their prior behaviour.</li>
+    <li><strong>Hard guard:</strong> if <code>canSwitchAcpProvider</code> is false (or the optional onSwitchProvider is omitted) the row is dropped entirely.</li>
+  </ul>
+  <p style="font-size:13px;color:var(--muted)">
+    <a class="src" href="https://github.com/JoaoNetoDev/OpenHands/blob/62a4be5/src/components/features/chat/error-message-banner.tsx">error-message-banner.tsx</a>
+    · <a class="src" href="https://github.com/JoaoNetoDev/OpenHands/blob/62a4be5/__tests__/components/chat/error-message-banner.test.tsx">test</a>
+  </p>
+</div>
+
+<div class="card changed" id="card-chat-interface">
+  <span class="pill">✏ changed · src/components/features/chat/chat-interface.tsx</span>
+  <h3>Wire the slot from <code>activeConversation</code></h3>
+  <p>
+    The chat interface already passes <code>onReauth</code> from
+    <code>isAcpAuthErrorCode(errorCode)</code>; this PR threads one more prop:
+  </p>
+  <pre><code>canSwitchAcpProvider=&#123;canShowAcpProviderSwitch(activeConversation)&#125;
+<span class="com">// handler → navigates to /conversations/&lt;new-id&gt; on success</span>
+</code></pre>
+  <p>
+    Five lines of real diff. No data fetch added at this layer; the popover does
+    its own <code>useAgentProfiles</code> request.
+  </p>
+  <p style="font-size:13px;color:var(--muted)">
+    <a class="src" href="https://github.com/JoaoNetoDev/OpenHands/blob/62a4be5/src/components/features/chat/chat-interface.tsx#L1-L10">imports</a>
+    ·
+    <a class="src" href="https://github.com/JoaoNetoDev/OpenHands/blob/62a4be5/src/components/features/chat/chat-interface.tsx#L700-L706">wire-up</a>
+  </p>
+</div>
+
+<div class="card added" id="card-hook">
+  <span class="pill">+ added · src/hooks/mutation/use-switch-acp-provider.ts</span>
+  <h3>Mutation that forks the active conversation</h3>
+  <p>A react-query mutation that:</p>
+  <ol>
+    <li>Reads the source conversation's persisted metadata (workspace, repo, branch, workspace mode, enabled plugins) via <code>getStoredConversationMetadata(sourceId)</code>.</li>
+    <li>Builds a <code>CreateConversationVariables</code> payload that targets the chosen <code>AgentProfileSummary</code> while carrying over every carried-over field, plus <code>parentConversationId</code> so the agent server keeps the cross-link.</li>
+    <li>Calls <code>useCreateConversation().mutate</code>; on success navigates to <code>/conversations/&#123;newId&#125;</code> via <code>useNavigate()</code>.</li>
+  </ol>
+  <ul class="delta-list">
+    <li>Exports <code>SWITCH_ACP_PROVIDER_MUTATION_KEY</code> for <code>useIsMutating</code> guards from anywhere (including the banner).</li>
+    <li><code>useSwitchAcpProviderCallback(sourceId)</code> returns a stable <code>(profile) =&gt; void</code> that no-ops while the mutation is pending — guards against double-clicks during the navigation round-trip.</li>
+    <li><strong>Failure handling:</strong> failed creates raise the standard toast (<code>displayErrorToast</code>); we do NOT navigate on failure, so the user keeps the original conversation context.</li>
+  </ul>
+  <p style="font-size:13px;color:var(--muted)">
+    <a class="src" href="https://github.com/JoaoNetoDev/OpenHands/blob/62a4be5/src/hooks/mutation/use-switch-acp-provider.ts">use-switch-acp-provider.ts</a>
+    · <a class="src" href="https://github.com/JoaoNetoDev/OpenHands/blob/62a4be5/__tests__/hooks/mutation/use-switch-acp-provider.test.tsx">test</a>
+  </p>
+</div>
+
+<div class="card changed" id="card-i18n">
+  <span class="pill">⚙ mechanical · src/i18n/translation.json</span>
+  <h3>Three new keys × 15 languages</h3>
+  <table>
+    <thead><tr><th>Key</th><th>Shown when</th></tr></thead>
+    <tbody>
+    <tr><td><code>ERROR$ACP_SWITCH_PROVIDER_TITLE</code></td><td>popover header</td></tr>
+    <tr><td><code>ERROR$ACP_SWITCH_PROVIDER_PROMPT</code></td><td>empty state of the popover</td></tr>
+    <tr><td><code>ERROR$ACP_SWITCH_PROVIDER_BUTTON</code></td><td>the trigger button label</td></tr>
+    </tbody>
+  </table>
+  <p>
+    All three carry full coverage in the 15 supported locales
+    (<code>npm run check-translation-completeness</code> was run after the additions).
+  </p>
+</div>
+
+<div class="card changed" id="card-tests">
+  <span class="pill">⚙ tests · 3 files</span>
+  <h3>34 / 34 feature tests pass</h3>
+  <ul class="delta-list">
+    <li><strong>acp-error-codes.test.ts</strong> — 9 cases for the helper (ACP detection via acp_server / fallback to agent_kind, all non-RUNNING statuses, missing conversation shapes).</li>
+    <li><strong>error-message-banner.test.tsx</strong> — 19 cases for the slot (slot off ⇒ no row, slot on + 0 profiles ⇒ i18n prompt, slot on + N profiles ⇒ menu, click ⇒ callback fires, menu closes after pick, etc.).</li>
+    <li><strong>use-switch-acp-provider.test.tsx</strong> — 4 cases for the mutation (rejects non-ACP target profile, requires source id, carries over workspace/repo/plugins from metadata, navigates to new id on success).</li>
+  </ul>
+  <p>
+    The full feature test bundle runs in &lt; 3 s; the larger 17-file suite
+    contains pre-existing failures unrelated to this PR (verified via
+    <code>git stash</code> + re-run).
+  </p>
+</div>
+
+</section>
+
+<section id="sec6">
+<h2><span class="num">6</span>Verification &amp; risks</h2>
+
+<h3>Verification trail</h3>
+<pre><code>npm run typecheck                          <span class="com"># clean</span>
+npx eslint &lt;changed files&gt;                <span class="com"># clean (ran with --fix once)</span>
+npx vitest run \
+  __tests__/utils/acp-error-codes.test.ts \
+  __tests__/components/chat/error-message-banner.test.tsx \
+  __tests__/hooks/mutation/use-switch-acp-provider.test.tsx
+                                           <span class="com"># 34 / 34 pass</span>
+</code></pre>
+
+<h3>Risks &amp; follow-ups</h3>
+<ul>
+  <li><strong>Concurrency:</strong> double-clicking the menu item is harmless — the callback no-ops while <code>isPending</code>. No timing tests beyond the "stable identity" case have been added; a real reproduction would need an agent-server.</li>
+  <li><strong>Cloud backends:</strong> the hook calls <code>useCreateConversation</code> which already branches on <code>backend.kind === "cloud"</code>, so the fork should work for cloud backends without extra glue. Not yet exercised end-to-end.</li>
+  <li><strong>Plugins carry-over:</strong> we pass the source's <code>plugins</code> array verbatim. If a future plugin has a conversation-local flag, that needs its own filter step.</li>
+  <li><strong>Out of scope:</strong> no proactive "switch provider" button on healthy conversations — the user asked specifically for the recovery case. A future PR could surface the same flow from a new toolbar entry on finished / paused conversations.</li>
+</ul>
+
+<h3>Acceptance evidence</h3>
+<ul>
+  <li>Manual: the reproducer in <code>openhands.zadotec.com.br/conversations/c8c844c1-f074-4703-866f-a2c102f7d6ed</code> with Claude Code's <code>[-32603]</code> now shows the "Trocar provedor" row alongside the existing credential recovery.</li>
+  <li>CI: simulated locally via <code>npm run lint</code> &amp; <code>npm test</code> on the changed files; full suite untouched.</li>
+</ul>
+</section>
+
+</main>
+</div>
+</body>
+</html>

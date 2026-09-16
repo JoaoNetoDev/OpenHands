@@ -7,8 +7,44 @@ const toastMocks = vi.hoisted(() => ({
   displayErrorToast: vi.fn(),
 }));
 
+const switchProviderMock = vi.hoisted(() => vi.fn());
+const profilesMock = vi.hoisted(() => ({
+  data: undefined as
+    | {
+        profiles: Array<{
+          id: string | null;
+          name: string;
+          agent_kind: "acp" | "openhands";
+        }>;
+        active_agent_profile_id: string | null;
+      }
+    | undefined,
+}));
+
 vi.mock("#/utils/custom-toast-handlers", () => ({
   displayErrorToast: toastMocks.displayErrorToast,
+}));
+
+// Banner tests do not exercise the query cache; skip the QueryClient
+// requirement so every `render(...)` call stays QueryClient-free.
+vi.mock("@tanstack/react-query", async () => {
+  const actual = await vi.importActual<typeof import("@tanstack/react-query")>(
+    "@tanstack/react-query",
+  );
+  return { ...actual, useIsMutating: () => 0 };
+});
+
+vi.mock("#/hooks/use-conversation-id", () => ({
+  useOptionalConversationId: () => ({ conversationId: "src-conv" }),
+}));
+
+vi.mock("#/hooks/query/use-agent-profiles", () => ({
+  useAgentProfiles: () => ({ data: profilesMock.data }),
+}));
+
+vi.mock("#/hooks/mutation/use-switch-acp-provider", () => ({
+  SWITCH_ACP_PROVIDER_MUTATION_KEY: ["switch-acp-provider"],
+  useSwitchAcpProviderCallback: () => switchProviderMock,
 }));
 
 describe("ErrorMessageBanner", () => {
@@ -210,5 +246,105 @@ describe("ErrorMessageBanner", () => {
     expect(
       screen.queryByTestId("error-message-banner-reauth"),
     ).not.toBeInTheDocument();
+  });
+
+  describe("ACP provider switch action", () => {
+    afterEach(() => {
+      switchProviderMock.mockClear();
+      profilesMock.data = undefined;
+    });
+
+    it("does not render the switch-provider button when canSwitchAcpProvider is false", () => {
+      render(<ErrorMessageBanner message="rate limit hit" />);
+      expect(
+        screen.queryByTestId("error-message-banner-switch-provider"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders the button but hides the menu until it is opened", () => {
+      render(
+        <ErrorMessageBanner message="rate limit hit" canSwitchAcpProvider />,
+      );
+      expect(
+        screen.getByTestId("error-message-banner-switch-provider"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("error-message-banner-switch-provider-menu"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("lists only ACP profiles when the menu opens", async () => {
+      const user = userEvent.setup();
+      profilesMock.data = {
+        active_agent_profile_id: "codex",
+        profiles: [
+          { id: "codex", name: "Codex", agent_kind: "acp" },
+          { id: "openhands", name: "Default", agent_kind: "openhands" },
+        ],
+      };
+
+      render(
+        <ErrorMessageBanner message="rate limit hit" canSwitchAcpProvider />,
+      );
+
+      await user.click(
+        screen.getByTestId("error-message-banner-switch-provider"),
+      );
+
+      expect(
+        screen.getByTestId("error-message-banner-switch-provider-option-Codex"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId(
+          "error-message-banner-switch-provider-option-Default",
+        ),
+      ).not.toBeInTheDocument();
+    });
+
+    it("invokes the switch callback with the picked profile", async () => {
+      const user = userEvent.setup();
+      const codex = { id: "codex", name: "Codex", agent_kind: "acp" as const };
+      profilesMock.data = {
+        active_agent_profile_id: "codex",
+        profiles: [codex],
+      };
+
+      render(
+        <ErrorMessageBanner message="rate limit hit" canSwitchAcpProvider />,
+      );
+
+      await user.click(
+        screen.getByTestId("error-message-banner-switch-provider"),
+      );
+      await user.click(
+        screen.getByTestId("error-message-banner-switch-provider-option-Codex"),
+      );
+
+      expect(switchProviderMock).toHaveBeenCalledTimes(1);
+      expect(switchProviderMock).toHaveBeenCalledWith(codex);
+    });
+
+    it("closes the menu after a profile is picked", async () => {
+      const user = userEvent.setup();
+      profilesMock.data = {
+        active_agent_profile_id: "codex",
+        profiles: [{ id: "codex", name: "Codex", agent_kind: "acp" as const }],
+      };
+
+      render(
+        <ErrorMessageBanner message="rate limit hit" canSwitchAcpProvider />,
+      );
+
+      await user.click(
+        screen.getByTestId("error-message-banner-switch-provider"),
+      );
+      await user.click(
+        screen.getByTestId("error-message-banner-switch-provider-option-Codex"),
+      );
+
+      expect(
+        screen.queryByTestId("error-message-banner-switch-provider-menu"),
+      ).not.toBeInTheDocument();
+    });
   });
 });
