@@ -1,7 +1,22 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Check, CircleAlert, CircleX, Copy, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  CircleAlert,
+  CircleX,
+  Copy,
+  X,
+} from "lucide-react";
 import { OH_STATUS_ERROR_COLOR } from "#/constants/status-colors";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
+import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
+import {
+  SWITCH_ACP_PROVIDER_MUTATION_KEY,
+  useSwitchAcpProviderCallback,
+} from "#/hooks/mutation/use-switch-acp-provider";
+import { useIsMutating } from "@tanstack/react-query";
+import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { I18nKey } from "#/i18n/declaration";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { getAcpErrorHeaderKey } from "#/utils/acp-error-codes";
@@ -17,6 +32,13 @@ interface ErrorMessageBannerProps {
   /** Recovery action (e.g. re-authenticate) shown for credential failures. */
   onReauth?: () => void;
   classification?: ErrorClassification | null;
+  /**
+   * Whether the current conversation is an ACP conversation that hit a
+   * recoverable provider failure (rate-limit / quota). When true, the banner
+   * surfaces a "Switch provider" menu that lets the user pick one of the
+   * configured ACP profiles and start a fresh conversation with it.
+   */
+  canSwitchAcpProvider?: boolean;
 }
 
 const DEFAULT_MAX_COLLAPSED_CHARS = 220;
@@ -28,13 +50,41 @@ export function ErrorMessageBanner({
   onRetry,
   onReauth,
   classification,
+  canSwitchAcpProvider,
 }: ErrorMessageBannerProps) {
   const { t, i18n } = useTranslation("openhands");
   const headerKey = getAcpErrorHeaderKey(code);
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [isMultiLine, setIsMultiLine] = React.useState(false);
+  const [isProviderMenuOpen, setIsProviderMenuOpen] = React.useState(false);
+  const providerMenuRef = useClickOutsideElement<HTMLDivElement>(() =>
+    setIsProviderMenuOpen(false),
+  );
   const [isCopied, setIsCopied] = React.useState(false);
   const contentRef = React.useRef<HTMLDivElement>(null);
+
+  const { conversationId: sourceConversationId } = useOptionalConversationId();
+  const switchAcpProvider = useSwitchAcpProviderCallback(
+    sourceConversationId ?? "",
+  );
+  const switchingAcpProviderCount = useIsMutating({
+    mutationKey: SWITCH_ACP_PROVIDER_MUTATION_KEY,
+  });
+  // Lazy-load the ACP profile list only while the menu is open, so a banner
+  // that never opens the menu does not cost an extra GET.
+  const { data: agentProfiles } = useAgentProfiles({
+    enabled: canSwitchAcpProvider === true && isProviderMenuOpen,
+  });
+  const acpProfiles = React.useMemo(
+    () =>
+      (agentProfiles?.profiles ?? []).filter(
+        (profile) => profile.agent_kind === "acp",
+      ),
+    [agentProfiles?.profiles],
+  );
+  const showSwitchProvider =
+    canSwitchAcpProvider === true && Boolean(sourceConversationId);
+  const isSwitchingProvider = switchingAcpProviderCount > 0;
 
   const isI18nKey = i18n.exists(message, { ns: "openhands" });
   const displayTextForLength = isI18nKey ? String(t(message)) : message;
@@ -147,6 +197,61 @@ export function ErrorMessageBanner({
           >
             {t(I18nKey.ERROR$ACP_UPDATE_CREDENTIALS)}
           </button>
+        )}
+
+        {showSwitchProvider && (
+          <div ref={providerMenuRef} className="relative mt-2 inline-block">
+            <button
+              type="button"
+              disabled={isSwitchingProvider}
+              onClick={() => setIsProviderMenuOpen((prev) => !prev)}
+              aria-haspopup="menu"
+              aria-expanded={isProviderMenuOpen}
+              className="cursor-pointer rounded-md border border-[var(--oh-border)] px-2 py-1 text-xs font-normal text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="error-message-banner-switch-provider"
+            >
+              {t(I18nKey.ERROR$ACP_SWITCH_PROVIDER_BUTTON)}
+              <ChevronDown
+                className="ml-1 inline h-3 w-3"
+                aria-hidden
+                strokeWidth={2}
+              />
+            </button>
+            {isProviderMenuOpen && (
+              <div
+                role="menu"
+                aria-label={t(I18nKey.ERROR$ACP_SWITCH_PROVIDER_MENU_LABEL)}
+                className="absolute left-0 top-full z-20 mt-1 min-w-[12rem] rounded-md border border-[var(--oh-border-subtle)] bg-tertiary py-1 shadow-lg"
+                data-testid="error-message-banner-switch-provider-menu"
+              >
+                {acpProfiles.length === 0 ? (
+                  <div
+                    className="px-3 py-2 text-xs text-[var(--oh-muted)]"
+                    data-testid="error-message-banner-switch-provider-empty"
+                  >
+                    {t(I18nKey.ERROR$ACP_SWITCH_PROVIDER_PROMPT)}
+                  </div>
+                ) : (
+                  acpProfiles.map((profile) => (
+                    <button
+                      key={profile.id ?? profile.name}
+                      type="button"
+                      role="menuitem"
+                      disabled={isSwitchingProvider}
+                      onClick={() => {
+                        setIsProviderMenuOpen(false);
+                        switchAcpProvider(profile);
+                      }}
+                      className="block w-full cursor-pointer px-3 py-1.5 text-left text-xs text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+                      data-testid={`error-message-banner-switch-provider-option-${profile.name}`}
+                    >
+                      {profile.name}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {shouldShowToggle && (

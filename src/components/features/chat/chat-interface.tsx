@@ -2,7 +2,10 @@ import React from "react";
 import { useNavigate } from "react-router";
 import { useTracking } from "#/hooks/use-tracking";
 import { useTranslation } from "react-i18next";
-import { isAcpAuthErrorCode } from "#/utils/acp-error-codes";
+import {
+  canShowAcpProviderSwitch,
+  isAcpAuthErrorCode,
+} from "#/utils/acp-error-codes";
 import { convertImageToBase64 } from "#/utils/convert-image-to-base-64";
 import { createChatMessage } from "#/services/chat-service";
 import { BtwMessages } from "./btw-messages";
@@ -698,6 +701,9 @@ export function ChatInterface() {
                     ? () => navigate("/settings/agents")
                     : undefined
                 }
+                canSwitchAcpProvider={canShowAcpProviderSwitch(
+                  activeConversation,
+                )}
               />
             )}
 
