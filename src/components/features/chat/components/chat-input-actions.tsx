@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Cpu } from "lucide-react";
 import { AgentStatus } from "#/components/features/controls/agent-status";
 import { ChangeAgentButton } from "../change-agent-button";
+import { SwitchAcpProviderButton } from "../switch-acp-provider-button";
 import { ChatInputModel, ChatInputModelMenuContent } from "./chat-input-model";
 import {
   ChatInputLlmProfilePicker,
@@ -82,6 +83,10 @@ export function ChatInputActions({
   // Code/Plan mode switching is a cloud OpenHands feature — it doesn't apply
   // to ACP conversations (which have no "plan" mode), so hide it when ACP.
   const showChangeAgentButton = isCloud && !modelState.isAcpContext;
+  // Persistent "switch ACP provider" affordance — see SwitchAcpProviderButton.
+  // The button hides itself when no other ACP profile is configured, so the
+  // gate here is just "we're in an ACP conversation".
+  const showSwitchAcpProviderButton = !isCloud && modelState.isAcpContext;
   const webSocketStatus = useUnifiedWebSocketStatus();
   const { curAgentState } = useAgentState();
   const { conversationMode, setConversationMode } = useConversationStore();
@@ -441,6 +446,11 @@ export function ChatInputActions({
           {showChangeAgentButton && (
             <div ref={codeRef} className={cn(!showCodeInline && "hidden")}>
               <ChangeAgentButton />
+            </div>
+          )}
+          {showSwitchAcpProviderButton && (
+            <div className="flex items-center">
+              <SwitchAcpProviderButton />
             </div>
           )}
           <div ref={modelRef} className={cn(!showModelInline && "hidden")}>
