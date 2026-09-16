@@ -67,6 +67,13 @@ vi.mock("#/context/navigation-context", () => ({
 
 vi.mock("#/contexts/active-backend-context", () => ({
   useActiveBackend: () => mockUseActiveBackend(),
+  // `home-chat-launcher.tsx` also calls `useActiveBackendContext()` (the
+  // strict variant that throws when no provider is mounted). The test
+  // file renders the launcher directly without an `<ActiveBackendProvider>`,
+  // so we expose a minimal stub that satisfies the destructured `backends`
+  // field. Real values come from `mockUseActiveBackend()` whenever a test
+  // cares about backend selection.
+  useActiveBackendContext: () => ({ backends: [] }),
 }));
 
 vi.mock("#/hooks/use-llm-configured", () => ({

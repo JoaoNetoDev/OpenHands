@@ -86,6 +86,22 @@ vi.mock("#/hooks/use-agent-state", () => ({
   })),
 }));
 
+// `useActiveBackendContext()` throws when no provider is mounted; this test
+// file renders <ChatInterface /> directly (no <ActiveBackendProvider>), so we
+// expose a minimal mock. The downstream hooks read `backend.id`, so the
+// stub backend needs a real-shaped object — null triggers a TypeError.
+const STUB_LOCAL_BACKEND = {
+  id: "stub-local",
+  name: "Stub",
+  host: "http://localhost",
+  apiKey: "test",
+  kind: "local" as const,
+};
+vi.mock("#/contexts/active-backend-context", () => ({
+  useActiveBackendContext: () => ({ backends: [] }),
+  useActiveBackend: () => ({ backend: STUB_LOCAL_BACKEND, orgId: null }),
+}));
+
 const trackInitialQuerySubmittedMock = vi.fn();
 const trackUserMessageSentMock = vi.fn();
 vi.mock("#/hooks/use-tracking", () => ({
