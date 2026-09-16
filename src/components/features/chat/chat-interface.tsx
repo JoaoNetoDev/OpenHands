@@ -29,6 +29,10 @@ import { useHandleBuildPlanClick } from "#/hooks/use-handle-build-plan-click";
 import { ScrollToBottomButton } from "#/components/shared/buttons/scroll-to-bottom-button";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { ChatMessagesSkeleton } from "./chat-messages-skeleton";
+import {
+  ATTACHMENT_BLOCK_OPEN,
+  ATTACHMENT_BLOCK_CLOSE,
+} from "#/utils/attachment-prompt";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
@@ -418,7 +422,10 @@ export function ChatInterface() {
       prompt = `${prompt}\n\n${t(I18nKey.CHAT_INTERFACE$AUGMENTED_PROMPT_IMAGES_TITLE)}:\n${visionFallbackText}`;
     }
     if (uploadedFiles.length > 0) {
-      prompt = `${prompt}\n\n${filePrompt}`;
+      // @spec ATTACH-DELIM-001 — Wrap the augmented block in stable ASCII
+      // markers so parse-message-from-event.ts can strip it back off even if
+      // the user changes UI language between sending and re-reading.
+      prompt = `${prompt}${ATTACHMENT_BLOCK_OPEN}${filePrompt}${ATTACHMENT_BLOCK_CLOSE}`;
     }
 
     // Enqueue the message into the local pending queue with status "sending"

@@ -1,6 +1,5 @@
 import { MessageEvent } from "#/types/agent-server/core";
-import i18n from "#/i18n";
-import { I18nKey } from "#/i18n/declaration";
+import { ATTACHMENT_BLOCK_OPEN } from "#/utils/attachment-prompt";
 
 export const parseMessageFromEvent = (event: MessageEvent): string => {
   const message = event.llm_message;
@@ -25,6 +24,18 @@ export const parseMessageFromEvent = (event: MessageEvent): string => {
     }
   }
 
+  // @spec ATTACH-DELIM-001 — Strip the augmented attachment block off so the
+  // chat re-display matches the text the user originally typed. The marker
+  // is locale-independent so this works regardless of any UI language
+  // change between sending and re-reading.
+  //
+  // Also keep the historical fallback that split on the localized title so
+  // messages stored before the marker change still re-display cleanly.
+  const openIdx = textContent.indexOf(ATTACHMENT_BLOCK_OPEN);
+  if (openIdx !== -1) {
+    return textContent.slice(0, openIdx);
+  }
+
   // Check if there are image_urls in the message content
   const hasImages =
     Array.isArray(message.content) &&
@@ -34,9 +45,5 @@ export const parseMessageFromEvent = (event: MessageEvent): string => {
     return textContent;
   }
 
-  // If there are images, try to split by the augmented prompt delimiter
-  const delimiter = i18n.t(I18nKey.CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE);
-  const parts = textContent.split(delimiter);
-
-  return parts[0];
+  return textContent;
 };

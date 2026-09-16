@@ -7,6 +7,10 @@ import AgentServerConversationService from "#/api/conversation-service/agent-ser
 import type { SendMessageRequest } from "#/api/conversation-service/agent-server-conversation-service.types";
 import type { Backend } from "#/api/backend-registry/types";
 import { convertImageToBase64 } from "#/utils/convert-image-to-base-64";
+import {
+  ATTACHMENT_BLOCK_OPEN,
+  ATTACHMENT_BLOCK_CLOSE,
+} from "#/utils/attachment-prompt";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { partitionImagesForUpload } from "#/components/features/chat/utils/chat-input.utils";
 import { validateFiles } from "#/utils/file-validation";
@@ -110,7 +114,9 @@ export async function sendMessageWithAttachments(options: {
     prompt = `${prompt}\n\n${t(I18nKey.CHAT_INTERFACE$AUGMENTED_PROMPT_IMAGES_TITLE)}:\n${visionFallbackText}`;
   }
   if (uploadedFiles.length > 0) {
-    prompt = `${prompt}\n\n${filePrompt}`;
+    // @spec ATTACH-DELIM-001 — Stable ASCII markers so the event parser can
+    // strip the augmented block back off regardless of UI language.
+    prompt = `${prompt}${ATTACHMENT_BLOCK_OPEN}${filePrompt}${ATTACHMENT_BLOCK_CLOSE}`;
   }
 
   const timestamp = new Date().toISOString();
