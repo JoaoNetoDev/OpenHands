@@ -131,6 +131,9 @@ export const useLocalGitInfo = () => {
   const runCommandRef = useRef(runCommand);
   runCommandRef.current = runCommand;
 
+  // runCommandRef is a ref (always stable); the linter cannot infer this so
+  // we disable the exhaustive-deps check here.
+
   return useQuery<LocalGitInfo>({
     queryKey: [
       "local-git-info",

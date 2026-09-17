@@ -5,7 +5,7 @@ import { I18nKey } from "#/i18n/declaration";
 import { useSystemSettings } from "#/hooks/use-system-settings";
 import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
-import { agentProfileDetailQueryKey } from "#/hooks/query/use-active-acp-profile-detail";
+import { AGENT_PROFILES_QUERY_KEYS } from "#/hooks/query/query-keys";
 import AgentProfilesService from "#/api/agent-profiles-service/agent-profiles-service.api";
 import { getAcpProviderDisplayName } from "#/constants/acp-providers";
 import { useActiveBackend } from "#/contexts/active-backend-context";
@@ -108,7 +108,7 @@ export function SystemSettingsScreen() {
   // (never for every item in the dropdown) — same on-demand pattern as
   // useSwitchAcpModel's home-page ACP resolution.
   const { data: selectedProfileDetail } = useQuery({
-    queryKey: agentProfileDetailQueryKey(
+    queryKey: AGENT_PROFILES_QUERY_KEYS.detail(
       backend.id,
       orgId,
       selectedProfile?.name ?? "",

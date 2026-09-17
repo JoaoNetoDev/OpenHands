@@ -5,6 +5,10 @@ const uploadFilesToConversation = vi.fn();
 const resolveConversationRuntime = vi.fn();
 const sendMessage = vi.fn();
 const displayErrorToast = vi.fn();
+const convertImageToBase64 = vi.fn(async (image: File) =>
+  `data:${image.type};base64,xxx`,
+);
+const validateFiles = vi.fn(() => ({ isValid: true }) as never);
 
 vi.mock("#/api/conversation-file-upload.api", () => ({
   uploadFilesToConversation: (...args: unknown[]) =>
@@ -21,13 +25,12 @@ vi.mock(
 );
 
 vi.mock("#/utils/convert-image-to-base-64", () => ({
-  convertImageToBase64: vi.fn(async (image: File) =>
-    `data:${image.type};base64,xxx`,
-  ),
+  convertImageToBase64: (image: File) => convertImageToBase64(image),
 }));
 
 vi.mock("#/utils/file-validation", () => ({
-  validateFiles: () => ({ isValid: true }),
+  validateFiles: (...args: unknown[]) =>
+    (validateFiles as (...a: unknown[]) => unknown)(...args),
 }));
 
 vi.mock("#/components/features/chat/utils/chat-input.utils", () => ({
@@ -125,5 +128,23 @@ describe("sendMessageWithAttachments", () => {
       "/home/openhands/workspace/project/abc123/notes.md",
     ]);
     expect(sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws the validator's attachment error before resolving a runtime", async () => {
+    validateFiles.mockReturnValueOnce({
+      isValid: false,
+      errorMessage: "Attachment is too large",
+    } as never);
+    await expect(
+      sendMessageWithAttachments({
+        conversationId: "conv-1",
+        content: "look at this",
+        images: [],
+        files: [makeFile("notes.md")],
+        imagesMarkedUploadAsFile: [],
+        t: fixedT,
+      }),
+    ).rejects.toThrow("Attachment is too large");
+    expect(resolveConversationRuntime).not.toHaveBeenCalled();
   });
 });
