@@ -20,6 +20,7 @@ import {
   dropdownMenuRowIconWrapperClassName,
 } from "#/utils/dropdown-classes";
 import { getWorkspacesUnsupportedMessage } from "#/utils/workspaces-compatibility";
+import { getWorkspaceSecondaryLabels } from "#/utils/workspace-display";
 import RepoIcon from "#/icons/repo.svg?react";
 
 import { FolderBrowserModal } from "#/components/features/home/workspace-dropdown/folder-browser-modal";
@@ -82,6 +83,12 @@ export function LocalNewConversationMenu({
   const { mutate: addWorkspaceParents } = useAddWorkspaceParents();
   const { mutate: removeWorkspaceParent } = useRemoveWorkspaceParent();
   const { workspaces } = useResolvedWorkspaces();
+  // Two folders can share a name (e.g. two `public_html`); those rows get a
+  // muted directory line so the list stays unambiguous.
+  const secondaryLabelById = React.useMemo(
+    () => getWorkspaceSecondaryLabels(workspaces),
+    [workspaces],
+  );
   const workspacesUnsupportedMessage = getWorkspacesUnsupportedMessage(
     workspacesError,
     t,
@@ -227,26 +234,37 @@ export function LocalNewConversationMenu({
                 </span>
               </button>
             </li>
-            {workspaces.map((w) => (
-              <li key={w.id}>
-                <button
-                  type="button"
-                  disabled={isCreating}
-                  data-testid="launch-workspace"
-                  data-workspace-path={w.path}
-                  onClick={() => launch(w.path)}
-                  className={itemClass}
-                >
-                  <span
-                    className={dropdownMenuRowIconWrapperClassName}
-                    aria-hidden
+            {workspaces.map((w) => {
+              const secondaryText = secondaryLabelById.get(w.id) ?? null;
+              return (
+                <li key={w.id}>
+                  <button
+                    type="button"
+                    disabled={isCreating}
+                    data-testid="launch-workspace"
+                    data-workspace-path={w.path}
+                    title={w.path}
+                    onClick={() => launch(w.path)}
+                    className={itemClass}
                   >
-                    <RepoIcon width={14} height={14} />
-                  </span>
-                  <span className="truncate">{w.name}</span>
-                </button>
-              </li>
-            ))}
+                    <span
+                      className={dropdownMenuRowIconWrapperClassName}
+                      aria-hidden
+                    >
+                      <RepoIcon width={14} height={14} />
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate">{w.name}</span>
+                      {secondaryText ? (
+                        <span className="truncate text-xs leading-4 text-[var(--oh-muted)]">
+                          {secondaryText}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
 
           <div

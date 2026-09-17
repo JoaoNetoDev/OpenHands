@@ -20,6 +20,8 @@ import { useAikBoardStore } from "#/stores/aik-board-store";
 import type { AikColumnId, AikTask } from "#/types/aik";
 import { AikTaskCard } from "#/components/features/aik/aik-task-card";
 import { AikTimeline } from "#/components/features/aik/aik-timeline";
+import { CreateAikTaskModal } from "#/components/features/aik/create-aik-task-modal";
+import { BrandButton } from "#/components/features/settings/brand-button";
 
 const COLUMN_IDS: AikColumnId[] = [
   "backlog",
@@ -109,6 +111,7 @@ export function AikTasksBoard(): JSX.Element {
 
   const [openTask, setOpenTask] = useState<AikTask | null>(null);
   const [feedback, setFeedback] = useState("");
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -157,6 +160,17 @@ export function AikTasksBoard(): JSX.Element {
       data-testid="aik-tasks-board"
       className="flex flex-1 flex-col gap-4 p-4 overflow-y-auto"
     >
+      <div className="flex justify-end">
+        <BrandButton
+          testId="aik-tasks-board-create-task"
+          type="button"
+          variant="primary"
+          onClick={() => setIsCreateOpen(true)}
+        >
+          {t(I18nKey.AIK$TASK_CREATE_BUTTON)}
+        </BrandButton>
+      </div>
+
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div
           data-testid="aik-tasks-board-columns"
@@ -230,6 +244,13 @@ export function AikTasksBoard(): JSX.Element {
             </div>
           )}
         </div>
+      )}
+
+      {isCreateOpen && (
+        <CreateAikTaskModal
+          phaseId={phaseId}
+          onClose={() => setIsCreateOpen(false)}
+        />
       )}
     </div>
   );

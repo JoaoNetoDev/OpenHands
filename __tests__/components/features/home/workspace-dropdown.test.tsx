@@ -261,4 +261,128 @@ describe("WorkspaceDropdown grouping (#129)", () => {
     const option = within(menu).getByRole("option", { name: "a" });
     expect(option).not.toHaveAttribute("aria-label");
   });
+
+  it("disambiguates same-named folders with a muted directory line", async () => {
+    const user = userEvent.setup();
+    renderDropdown({
+      parents: [],
+      workspaces: [
+        {
+          id: "/srv/a/public_html",
+          name: "public_html",
+          path: "/srv/a/public_html",
+        },
+        {
+          id: "/srv/b/public_html",
+          name: "public_html",
+          path: "/srv/b/public_html",
+        },
+      ],
+    });
+    const menu = await openMenu(user);
+
+    // Both rows exist; the directories are what tell them apart.
+    expect(within(menu).getAllByText("public_html")).toHaveLength(2);
+    expect(within(menu).getByText("/srv/a")).toBeInTheDocument();
+    expect(within(menu).getByText("/srv/b")).toBeInTheDocument();
+  });
+
+  it("keeps rows single-line when every folder name is unique", async () => {
+    const user = userEvent.setup();
+    renderDropdown({
+      parents: [],
+      workspaces: [
+        { id: "/srv/a", name: "alpha", path: "/srv/a" },
+        { id: "/srv/b", name: "beta", path: "/srv/b" },
+      ],
+    });
+    const menu = await openMenu(user);
+
+    expect(within(menu).queryByText("/srv/a")).toBeNull();
+    expect(within(menu).queryByText("/srv/b")).toBeNull();
+  });
+
+  it("folds the directory into the accessible name of same-named folders", async () => {
+    const user = userEvent.setup();
+    renderDropdown({
+      parents: [],
+      workspaces: [
+        {
+          id: "/srv/a/public_html",
+          name: "public_html",
+          path: "/srv/a/public_html",
+        },
+        {
+          id: "/srv/b/public_html",
+          name: "public_html",
+          path: "/srv/b/public_html",
+        },
+      ],
+    });
+    const menu = await openMenu(user);
+
+    expect(
+      within(menu).getByRole("option", { name: "public_html, /srv/a" }),
+    ).toBeInTheDocument();
+    expect(
+      within(menu).getByRole("option", { name: "public_html, /srv/b" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the directory visible on the control after selecting a same-named folder", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const workspaces: LocalWorkspace[] = [
+      {
+        id: "/srv/a/public_html",
+        name: "public_html",
+        path: "/srv/a/public_html",
+      },
+      {
+        id: "/srv/b/public_html",
+        name: "public_html",
+        path: "/srv/b/public_html",
+      },
+    ];
+    const { rerender } = render(
+      <WorkspaceDropdown
+        workspaces={workspaces}
+        parents={[]}
+        value={null}
+        onChange={onChange}
+        onAddClick={vi.fn()}
+        onManageClick={vi.fn()}
+      />,
+    );
+    const menu = await openMenu(user);
+    await user.click(
+      within(menu).getByRole("option", { name: "public_html, /srv/a" }),
+    );
+
+    // The dropdown closes on select; the caller owns the value, so mirror it.
+    rerender(
+      <WorkspaceDropdown
+        workspaces={workspaces}
+        parents={[]}
+        value={workspaces[0]}
+        onChange={onChange}
+        onAddClick={vi.fn()}
+        onManageClick={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("selected-workspace-directory")).toHaveTextContent(
+      "/srv/a",
+    );
+  });
+
+  it("shows no directory hint for a uniquely named selection", async () => {
+    renderDropdown({
+      workspaces: [{ id: "/srv/a", name: "alpha", path: "/srv/a" }],
+      parents: [],
+      value: { id: "/srv/a", name: "alpha", path: "/srv/a" },
+    });
+
+    expect(screen.queryByTestId("selected-workspace-directory")).toBeNull();
+  });
 });

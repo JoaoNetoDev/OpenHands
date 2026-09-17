@@ -52,18 +52,34 @@ function parseAikSystemFile(raw: string): AikSystemFile | null {
   };
 }
 
+/** IDs the local user has deleted since the last successful write, keyed by
+ * collection. Items on disk whose `id` is tombstoned are dropped from the
+ * merge instead of being treated as "present only on disk, keep it" — that
+ * rule is what made a local deletion look like a no-op when the on-disk file
+ * still held the pre-delete snapshot. See `pendingTombstonesBySystem`
+ * (`src/stores/aik-board-store.ts`) for how these are captured. */
+export interface AikMergeTombstones {
+  phases?: ReadonlySet<string>;
+  tasks?: ReadonlySet<string>;
+}
+
 /**
  * Merges a collection of items keyed by `id`, keeping the version with the
  * most recent `updatedAt` when an item is present on both sides. An item
  * present on only one side is always kept (never dropped for being absent
- * on the other side).
+ * on the other side) — UNLESS its `id` is tombstoned, in which case the disk
+ * copy is dropped so the local deletion survives the read-modify-write.
  */
 function mergeById<T extends { id: string; updatedAt: string }>(
   disk: T[],
   incoming: T[],
+  tombstones?: ReadonlySet<string>,
 ): T[] {
   const byId = new Map<string, T>();
-  for (const item of disk) byId.set(item.id, item);
+  for (const item of disk) {
+    if (tombstones?.has(item.id)) continue;
+    byId.set(item.id, item);
+  }
   for (const item of incoming) {
     const existing = byId.get(item.id);
     if (!existing || new Date(item.updatedAt) >= new Date(existing.updatedAt)) {
@@ -84,12 +100,17 @@ function mergeById<T extends { id: string; updatedAt: string }>(
 export function mergeAikSystemFiles(
   local: AikSystemFile,
   remote: AikSystemFile,
+  tombstones?: AikMergeTombstones,
 ): AikSystemFile {
   return {
     version: 1,
     systemId: remote.systemId || local.systemId,
-    phases: mergeById<AikPhase>(local.phases, remote.phases),
-    tasks: mergeById<AikTask>(local.tasks, remote.tasks),
+    phases: mergeById<AikPhase>(
+      local.phases,
+      remote.phases,
+      tombstones?.phases,
+    ),
+    tasks: mergeById<AikTask>(local.tasks, remote.tasks, tombstones?.tasks),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -104,6 +125,29 @@ export function mergeAikSystemFiles(
  * backend this returns `{ ok: false, errorType: "cloud_unsupported" }`
  * immediately, without ever calling `executeCommand`.
  */
+function emptyAikSystemFile(): AikSystemFile {
+  return {
+    version: 1,
+    systemId: "",
+    phases: [],
+    tasks: [],
+    updatedAt: new Date(0).toISOString(),
+  };
+}
+
+/**
+ * A `cat` on a `system.json` that hasn't been written yet fails with exit
+ * code 1 and this exact GNU coreutils message on stderr — the same failure
+ * shape as any other unreadable path. Without this check, a brand-new
+ * system (created but never yet synced to disk, the normal state right
+ * after `createSystem`) was indistinguishable from a genuinely unreachable
+ * workspace, and surfaced the same scary "workspace inacessível" error for
+ * something that isn't an error at all.
+ */
+function isFileNotFoundError(stderr: string): boolean {
+  return /no such file or directory/i.test(stderr);
+}
+
 export async function readAikSystemFile(
   workspacePath: string,
 ): Promise<
@@ -121,6 +165,9 @@ export async function readAikSystemFile(
       workspacePath,
     );
     if (result.exit_code !== 0) {
+      if (isFileNotFoundError(result.stderr)) {
+        return { ok: true, file: emptyAikSystemFile() };
+      }
       return { ok: false, errorType: "workspace_unreachable" };
     }
     const parsed = parseAikSystemFile(result.stdout);
@@ -147,13 +194,16 @@ export async function readAikSystemFile(
 export async function writeAikSystemFile(
   workspacePath: string,
   file: AikSystemFile,
+  tombstones?: AikMergeTombstones,
 ): Promise<{ ok: true } | { ok: false; errorType: AikErrorType }> {
   if (getActiveBackend().backend.kind === "cloud") {
     return { ok: false, errorType: "cloud_unsupported" };
   }
   try {
     const current = await readAikSystemFile(workspacePath);
-    const merged = current.ok ? mergeAikSystemFiles(current.file, file) : file;
+    const merged = current.ok
+      ? mergeAikSystemFiles(current.file, file, tombstones)
+      : file;
     const contentBase64 = await toBase64(
       new TextEncoder().encode(JSON.stringify(merged)).buffer,
     );

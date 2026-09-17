@@ -113,3 +113,52 @@ export async function startAikAgentTask(
     };
   }
 }
+
+/**
+ * Starts the system-level conversation (RF-22/23) — the same workspace
+ * resolution as `startAikAgentTask` above, but with no task/phase briefing:
+ * just the user's own first message, exactly like starting a plain new
+ * conversation against this system's workspace/repository.
+ */
+export async function startAikSystemConversation(
+  system: AikSystem,
+  initialUserMsg: string,
+): Promise<
+  { ok: true; conversationId: string } | { ok: false; error: string }
+> {
+  try {
+    if (
+      system.workspaceRef.kind === "cloud" &&
+      !(system.workspaceRef.repository.provider in ProviderOptions)
+    ) {
+      return { ok: false, error: "invalid_git_provider" };
+    }
+
+    const result = await AgentServerConversationService.createConversation(
+      system.workspaceRef.kind === "local"
+        ? {
+            initialUserMsg,
+            workingDirOverride: system.workspaceRef.path,
+          }
+        : {
+            initialUserMsg,
+            metadata: {
+              selected_repository: system.workspaceRef.repository.fullName,
+              selected_branch: null,
+              git_provider: system.workspaceRef.repository.provider as Provider,
+            },
+          },
+    );
+
+    if (!result.app_conversation_id) {
+      return { ok: false, error: "Conversa criada sem id retornado" };
+    }
+    return { ok: true, conversationId: result.app_conversation_id };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Falha ao iniciar conversa",
+    };
+  }
+}

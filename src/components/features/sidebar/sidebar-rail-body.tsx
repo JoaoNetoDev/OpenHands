@@ -6,9 +6,7 @@ import {
   Plus,
   Server,
   Settings,
-  Settings2,
   PanelsTopLeft,
-  LayoutGrid,
 } from "lucide-react";
 import { OpenHandsLogoButton } from "#/components/shared/buttons/openhands-logo-button";
 import { NavigationLink } from "#/components/shared/navigation-link";
@@ -202,14 +200,6 @@ export function SidebarRailBody({
           icon={<Plus width={ICON_SIZE} height={ICON_SIZE} />}
         />
         <SidebarNavLink
-          to="/board"
-          label={t(I18nKey.NAV$BOARD)}
-          testId="sidebar-board-link"
-          collapsed={collapsed}
-          pinAction={buildPinAction("/board", "sidebar-pin-home-toggle-board")}
-          icon={<LayoutGrid width={ICON_SIZE} height={ICON_SIZE} />}
-        />
-        <SidebarNavLink
           to={CUSTOMIZE_PATH}
           label={t(I18nKey.NAV$CUSTOMIZE)}
           testId="sidebar-skills-link"
@@ -321,26 +311,6 @@ export function SidebarRailBody({
               </NavigationLink>
             )}
           </StyledTooltip>
-          <StyledTooltip
-            content={t(I18nKey.SETTINGS$NAV_SYSTEM)}
-            placement="right"
-          >
-            <NavigationLink
-              to="/settings/system"
-              data-testid="sidebar-collapsed-system-link"
-              aria-label={t(I18nKey.SETTINGS$NAV_SYSTEM)}
-              className={sidebarNavRowClassName({ collapsed: true })}
-            >
-              <SidebarCollapsedIconSlot
-                active={currentPath.startsWith("/settings/system")}
-              >
-                <Settings2 width={ICON_SIZE} height={ICON_SIZE} />
-              </SidebarCollapsedIconSlot>
-              <span className={sidebarNavLabelClassName(true)}>
-                {t(I18nKey.SETTINGS$NAV_SYSTEM)}
-              </span>
-            </NavigationLink>
-          </StyledTooltip>
           <div
             className="relative"
             ref={collapsedBackendPopoverRef}
@@ -419,13 +389,6 @@ export function SidebarRailBody({
           >
             <AgentCanvasVersionTile hideWhenUpToDate />
             <BackendSelector sidebarCollapsed={collapsed} openUpward />
-            <SidebarNavLink
-              to="/settings/system"
-              label={t(I18nKey.SETTINGS$NAV_SYSTEM)}
-              testId="sidebar-system-link"
-              collapsed={collapsed}
-              icon={<Settings2 width={ICON_SIZE} height={ICON_SIZE} />}
-            />
           </div>
         </>
       ) : null}

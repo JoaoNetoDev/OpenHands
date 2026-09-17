@@ -58,11 +58,12 @@ export const useSwitchAcpProvider = () => {
       sourceConversationId,
       targetProfile,
     }: SwitchAcpProviderVariables) => {
-      if (targetProfile.agent_kind !== "acp") {
-        throw new Error(
-          "Switch provider only supports ACP profiles; the chosen profile is not ACP.",
-        );
-      }
+      // v1 restricted to ACP profiles because the banner only surfaced on
+      // ACP errors. The input-row affordance has no such constraint — users
+      // want to fork to "another model", and that includes OpenHands
+      // profiles (e.g. one bound to the Verboo LLM profile). The hook name
+      // keeps "AcpProvider" for grep-ability but the body now accepts both
+      // `agent_kind === "acp"` and `agent_kind === "openhands"`.
       if (!targetProfile.id) {
         throw new Error("Target profile is missing a stable id.");
       }

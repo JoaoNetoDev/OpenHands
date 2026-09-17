@@ -7,8 +7,9 @@ import { useParams } from "react-router";
 import { I18nKey } from "#/i18n/declaration";
 import { useAikBoardStore } from "#/stores/aik-board-store";
 import { useNavigation } from "#/context/navigation-context";
-import { AikBreadcrumb } from "#/components/features/aik/aik-breadcrumb";
 import { DeletePhaseConfirmDialog } from "#/components/features/aik/delete-phase-confirm-dialog";
+import { CreatePhaseModal } from "#/components/features/aik/create-phase-modal";
+import { BrandButton } from "#/components/features/settings/brand-button";
 import type { AikColumnId, AikErrorType, AikPhase } from "#/types/aik";
 
 const AIK_PHASE_COLUMNS: AikColumnId[] = [
@@ -53,6 +54,7 @@ export function AikPhasesBoard(): JSX.Element {
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
   const [deletePhaseId, setDeletePhaseId] = useState<string | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   const phases = useAikBoardStore((state) =>
     systemId
@@ -76,7 +78,16 @@ export function AikPhasesBoard(): JSX.Element {
 
   return (
     <div data-testid="aik-phases-board" className="flex flex-col gap-4">
-      <AikBreadcrumb systemId={systemId} />
+      <div className="flex justify-end">
+        <BrandButton
+          testId="aik-phases-board-create-phase"
+          type="button"
+          variant="primary"
+          onClick={() => setIsCreateOpen(true)}
+        >
+          {t(I18nKey.AIK$PHASE_CREATE_BUTTON)}
+        </BrandButton>
+      </div>
 
       {error ? (
         <div
@@ -156,6 +167,13 @@ export function AikPhasesBoard(): JSX.Element {
           systemId={systemId}
           phaseId={deletePhaseId}
           onClose={() => setDeletePhaseId(null)}
+        />
+      )}
+
+      {isCreateOpen && (
+        <CreatePhaseModal
+          systemId={systemId}
+          onClose={() => setIsCreateOpen(false)}
         />
       )}
     </div>

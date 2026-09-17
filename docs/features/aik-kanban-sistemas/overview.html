@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIK — Front de sistemas em kanban hierárquico</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #0f1115;
+    --bg-card: #171a21;
+    --border: #2a2f3a;
+    --text: #e8eaed;
+    --text-muted: #9aa1ac;
+    --accent: #6ea8fe;
+    --accent-soft: #23324a;
+    --good: #4ade80;
+    --warn: #fbbf24;
+    --risk: #f87171;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f8fa;
+      --bg-card: #ffffff;
+      --border: #dde1e7;
+      --text: #1c1f26;
+      --text-muted: #5c6370;
+      --accent: #2f6fe4;
+      --accent-soft: #e8f0fe;
+      --good: #17803d;
+      --warn: #92650a;
+      --risk: #b3261e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+  }
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  header {
+    margin-bottom: 40px;
+  }
+  h1 {
+    font-size: 1.9rem;
+    margin: 0 0 8px;
+  }
+  .subtitle {
+    color: var(--text-muted);
+    font-size: 1rem;
+    margin: 0;
+  }
+  .tag-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-size: 0.78rem;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid var(--border);
+  }
+  section {
+    margin-bottom: 40px;
+  }
+  h2 {
+    font-size: 1.25rem;
+    margin: 0 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    font-size: 1.02rem;
+    margin: 20px 0 8px;
+  }
+  p { margin: 0 0 12px; }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 640px) {
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+  .problem-item {
+    display: flex;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .problem-item:last-child { border-bottom: none; }
+  .problem-item .icon {
+    flex-shrink: 0;
+    width: 22px;
+    text-align: center;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { color: var(--text-muted); font-weight: 600; font-size: 0.82rem; }
+  .timeline {
+    position: relative;
+    margin-left: 12px;
+    padding-left: 24px;
+    border-left: 2px solid var(--border);
+  }
+  .wave {
+    position: relative;
+    margin-bottom: 22px;
+  }
+  .wave::before {
+    content: "";
+    position: absolute;
+    left: -30px;
+    top: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid var(--bg);
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  .wave-title {
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .wave-sprints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .sprint-chip {
+    font-size: 0.8rem;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid var(--border);
+    padding: 3px 9px;
+    border-radius: 8px;
+  }
+  .risk-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    margin-left: 6px;
+  }
+  .risk-high { background: rgba(248,113,113,0.15); color: var(--risk); }
+  ul { margin: 0; padding-left: 20px; }
+  li { margin-bottom: 6px; }
+  .out-of-scope {
+    color: var(--text-muted);
+    font-size: 0.92rem;
+  }
+  footer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>AIK — front de sistemas em kanban hierárquico</h1>
+  <p class="subtitle">Um jeito novo de olhar o OpenHands: cada sistema é um workspace, o trabalho dele é um quadro, e o agente executa direto do card.</p>
+  <div class="tag-row">
+    <span class="tag">aik.zadotec.com.br</span>
+    <span class="tag">4 releases</span>
+    <span class="tag">11 sprints, 5 ondas</span>
+  </div>
+</header>
+
+<section>
+  <h2>O problema</h2>
+  <div class="card">
+    <div class="problem-item">
+      <span class="icon">❌</span>
+      <div><strong>A tela de "quadros" é uma lista.</strong> Não existe baia nenhuma pra ver o sistema como kanban.</div>
+    </div>
+    <div class="problem-item">
+      <span class="icon">❌</span>
+      <div><strong>Só um nível aparece de verdade.</strong> Sub-tarefas ficam em modal empurrado dentro de outro modal — dá a sensação de "separado e confuso".</div>
+    </div>
+    <div class="problem-item">
+      <span class="icon">❌</span>
+      <div><strong>Executar quase nunca está disponível.</strong> O botão fica desabilitado na maioria dos cards, e não existe conversa dentro do próprio quadro.</div>
+    </div>
+  </div>
+  <p style="margin-top:16px">Essas três queixas foram registradas pelo próprio usuário do produto, direto no quadro que ele estava tentando usar.</p>
+</section>
+
+<section>
+  <h2>O que vai ser entregue</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3 style="margin-top:0">Hierarquia sem modal empilhado</h3>
+      <p><strong>Sistema → Fase → Tarefa</strong>, cada nível com sua própria tela e um breadcrumb navegável. Fase é um container — nunca executa sozinha, sempre reflete o estado real das tarefas dentro dela.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Executar sem pré-condição escondida</h3>
+      <p>Toda tarefa com instrução pro agente e backend de pé mostra o botão Executar. Se já existe um agente trabalhando naquele sistema, o botão explica por que está esperando — nunca some sem explicação.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Revisão humana obrigatória</h3>
+      <p>O agente nunca marca uma tarefa como concluída sozinho — ele entrega, e um humano aprova ou devolve com feedback, na mesma conversa.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Conversa embutida, em qualquer nível</h3>
+      <p>Um painel lateral com o chat do sistema, acessível de qualquer tela — reaproveitando o motor de conversa que o OpenHands já tem, maduro e testado, sem reescrever nada.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Sistema = workspace</h2>
+  <p>Um sistema no AIK é, literalmente, um workspace do OpenHands — local (uma pasta no disco) ou remoto (um repositório no OpenHands Cloud). É a mesma peça que o produto já usa hoje pra saber onde o agente trabalha; o AIK só organiza o trabalho dentro dela em fases e tarefas visíveis.</p>
+</section>
+
+<section>
+  <h2>As 4 entregas, em ordem</h2>
+  <table>
+    <tr><th>Release</th><th>O que entrega</th><th>Prova de que funciona</th></tr>
+    <tr>
+      <td><strong>1 — Esqueleto</strong></td>
+      <td>Kanban de sistemas, fases e tarefas navegável, com criar/renomear/excluir e arrastar entre colunas</td>
+      <td>Um humano planeja um sistema inteiro à mão, sem agente</td>
+    </tr>
+    <tr>
+      <td><strong>2 — Execução</strong></td>
+      <td>Executar, parar, indicador de trabalho em andamento, aprovar/devolver</td>
+      <td>Uma tarefa vai do início ao fim com o agente trabalhando nela</td>
+    </tr>
+    <tr>
+      <td><strong>3 — Conversa</strong></td>
+      <td>Painel de chat do sistema, o agente criando fases e tarefas a partir da conversa</td>
+      <td>O plano de trabalho nasce de uma conversa, não de formulário</td>
+    </tr>
+    <tr>
+      <td><strong>4 — Publicação</strong></td>
+      <td>Endereço próprio (aik.zadotec.com.br), sem afetar o site atual</td>
+      <td>Os dois sites funcionam ao mesmo tempo, sem um atrapalhar o outro</td>
+    </tr>
+  </table>
+</section>
+
+<section>
+  <h2>Linha do tempo de construção</h2>
+  <p>11 sprints organizadas em 5 ondas. Sprints da mesma onda rodam em paralelo — não mexem no mesmo arquivo nem dependem uma da outra.</p>
+  <div class="timeline">
+    <div class="wave">
+      <div class="wave-title">Onda 1 — Fundação</div>
+      <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:8px">O vocabulário de dados do AIK, e a prova de que o site consegue decidir "qual app mostrar" olhando o endereço acessado.</p>
+      <div class="wave-sprints">
+        <span class="sprint-chip">01 — Tipos e regras de dependência</span>
+        <span class="sprint-chip">02 — Roteamento por endereço <span class="risk-badge risk-high">risco alto</span></span>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="wave-title">Onda 2 — Peças de apoio</div>
+      <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:8px">Ler/gravar o arquivo do quadro, montar a instrução que vai pro agente, e as peças visuais reutilizáveis.</p>
+      <div class="wave-sprints">
+        <span class="sprint-chip">03 — Guardar o quadro em arquivo</span>
+        <span class="sprint-chip">04 — Instrução pro agente</span>
+        <span class="sprint-chip">05 — Trilha de navegação e histórico</span>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="wave-title">Onda 3 — O cérebro</div>
+      <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:8px">Todas as regras de negócio num só lugar: mover card, executar, aprovar, detectar dependência circular.</p>
+      <div class="wave-sprints">
+        <span class="sprint-chip">06 — Estado do quadro</span>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="wave-title">Onda 4 — As telas</div>
+      <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:8px">As 3 telas de kanban e o painel de conversa, todas ao mesmo tempo, cada uma no seu próprio arquivo.</p>
+      <div class="wave-sprints">
+        <span class="sprint-chip">07 — Moldura e chat</span>
+        <span class="sprint-chip">08 — Quadro de sistemas</span>
+        <span class="sprint-chip">09 — Quadro de fases</span>
+        <span class="sprint-chip">10 — Quadro de tarefas</span>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="wave-title">Onda 5 — No ar</div>
+      <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:8px">Endereço próprio publicado, e os testes que só fazem sentido contra o site real.</p>
+      <div class="wave-sprints">
+        <span class="sprint-chip">11 — Publicação e verificação final</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Riscos que vale a pena conhecer</h2>
+  <div class="card">
+    <p><strong>Roteamento por endereço (Sprint 02).</strong> A forma como o site vai decidir "isto é o AIK, isto é o site atual" olhando só o endereço acessado nunca foi feita neste projeto antes. Por isso o próprio plano exige uma prova em navegador real antes de seguir, com um plano B pronto caso não funcione do primeiro jeito.</p>
+  </div>
+  <div class="card">
+    <p><strong>Um agente por vez, por sistema.</strong> Na primeira versão, cada sistema só roda um agente de cada vez — sem fila, sem múltiplas execuções simultâneas. Fica visível na tela quando isso acontece, nunca escondido.</p>
+  </div>
+</section>
+
+<section>
+  <h2>O que fica de fora, por enquanto</h2>
+  <div class="card">
+    <ul class="out-of-scope">
+      <li>Fila de execuções com posição e custo por tarefa</li>
+      <li>Um quarto nível de quadro (hoje o detalhe fino vira checklist dentro do card)</li>
+      <li>Substituir ou remover o site atual do OpenHands</li>
+      <li>Múltiplos usuários e permissões</li>
+      <li>Trazer automaticamente os quadros que já existem hoje pro formato novo</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  Documento gerado pelo pipeline <code>/featdevelop</code> — PRD, arquitetura,
+  design detalhado e sprints em <code>docs/features/aik-kanban-sistemas/</code>,
+  cada fase validada adversarialmente contra o código real antes de avançar.
+</footer>
+
+</main>
+</body>
+</html>

@@ -9,6 +9,7 @@ import {
 } from "#/utils/dropdown-classes";
 import { formControlFieldClassName } from "#/utils/form-control-classes";
 import type { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
+import { getWorkspaceSecondaryLabels } from "#/utils/workspace-display";
 import { I18nKey } from "#/i18n/declaration";
 import RepoIcon from "#/icons/repo.svg?react";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
@@ -77,6 +78,13 @@ export function WorkspaceDropdown({
         w.path.toLowerCase().includes(trimmed),
     );
   }, [workspaces, inputValue]);
+
+  // Computed from the full list, not the filtered one, so a folder's row does
+  // not grow an extra line while the user types.
+  const secondaryLabelById = useMemo(
+    () => getWorkspaceSecondaryLabels(workspaces),
+    [workspaces],
+  );
 
   // Group the filtered list by parent so folders from the same workspace render
   // contiguously under a header. The grouped array is the SINGLE source for both
@@ -204,22 +212,34 @@ export function WorkspaceDropdown({
     itemHighlightedIndex: number,
     itemSelectedItem: LocalWorkspace | null,
     itemGetItemProps: any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  ) => (
-    <DropdownItem
-      key={item.id}
-      item={item}
-      index={index}
-      isSelected={itemSelectedItem?.id === item.id}
-      getItemProps={itemGetItemProps}
-      getDisplayText={(workspace) => workspace.name}
-      getItemKey={(workspace) => workspace.id}
-      ariaLabel={
-        isGrouped
-          ? `${groupLabelByIndex.get(index) ?? ""}, ${item.name}`.trim()
-          : undefined
-      }
-    />
-  );
+  ) => {
+    const secondaryText = secondaryLabelById.get(item.id) ?? null;
+    // The accessible name carries whatever the row's presentation cannot: the
+    // group header (presentational sibling) and the disambiguating directory.
+    const ariaLabelParts = [
+      isGrouped ? groupLabelByIndex.get(index) : null,
+      item.name,
+      secondaryText,
+    ].filter((part): part is string => Boolean(part));
+
+    return (
+      <DropdownItem
+        key={item.id}
+        item={item}
+        index={index}
+        isSelected={itemSelectedItem?.id === item.id}
+        getItemProps={itemGetItemProps}
+        getDisplayText={(workspace) => workspace.name}
+        getSecondaryText={(workspace) =>
+          secondaryLabelById.get(workspace.id) ?? null
+        }
+        getItemKey={(workspace) => workspace.id}
+        ariaLabel={
+          ariaLabelParts.length > 1 ? ariaLabelParts.join(", ") : undefined
+        }
+      />
+    );
+  };
 
   const renderEmptyState = (emptyInputValue: string) => (
     <EmptyState
@@ -315,6 +335,10 @@ export function WorkspaceDropdown({
     ],
   );
 
+  const selectedSecondaryText = value
+    ? (secondaryLabelById.get(value.id) ?? null)
+    : null;
+
   const control = (
     <div className={cn("relative", className)}>
       <div className="group relative text-[var(--oh-muted)] hover:text-white">
@@ -324,6 +348,7 @@ export function WorkspaceDropdown({
         <input
           {...getInputProps({
             disabled,
+            title: value?.path,
             placeholder:
               isOpen && value
                 ? value.name
@@ -350,6 +375,16 @@ export function WorkspaceDropdown({
           />
         </div>
       </div>
+
+      {/* Same-named folders stay identifiable after the menu closes. */}
+      {selectedSecondaryText ? (
+        <p
+          className="px-1 pt-1 text-xs text-[var(--oh-text-secondary)]"
+          data-testid="selected-workspace-directory"
+        >
+          {selectedSecondaryText}
+        </p>
+      ) : null}
 
       <GenericDropdownMenu<LocalWorkspace>
         isOpen={isOpen}

@@ -6,6 +6,7 @@ import { AikSystemForm } from "#/components/features/aik/aik-system-form";
 import { useAikBoardStore } from "#/stores/aik-board-store";
 import * as activeStore from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
+import type { LocalWorkspace } from "#/types/workspace";
 
 const LOCAL_BACKEND: Backend = {
   id: "local-backend",
@@ -23,13 +24,9 @@ const CLOUD_BACKEND: Backend = {
   kind: "cloud",
 };
 
-const useLocalWorkspacesMock = vi.fn();
 const useGitRepositoriesMock = vi.fn();
 const useUserProvidersMock = vi.fn();
-
-vi.mock("#/hooks/query/use-local-workspaces", () => ({
-  useLocalWorkspaces: (...args: unknown[]) => useLocalWorkspacesMock(...args),
-}));
+const addWorkspacesMock = vi.fn();
 
 vi.mock("#/hooks/query/use-git-repositories", () => ({
   useGitRepositories: (...args: unknown[]) => useGitRepositoriesMock(...args),
@@ -39,13 +36,60 @@ vi.mock("#/hooks/use-user-providers", () => ({
   useUserProviders: (...args: unknown[]) => useUserProvidersMock(...args),
 }));
 
-const LOCAL_WORKSPACE = { id: "ws-1", path: "/home/user/project" };
+vi.mock("#/hooks/mutation/use-local-workspaces-mutations", () => ({
+  useAddWorkspaces: () => ({
+    mutate: (items: LocalWorkspace[], opts?: { onSuccess?: () => void }) => {
+      addWorkspacesMock(items);
+      opts?.onSuccess?.();
+    },
+  }),
+}));
+
+// Same mocking pattern as
+// __tests__/components/features/conversation-panel/local-new-conversation-menu.test.tsx:
+// the real FolderBrowserModal drives its own filesystem browsing UI, which
+// is out of scope here — a stub that exposes a single button to trigger
+// `onAdd` with a fixed workspace is enough to exercise AikSystemForm's own
+// logic (CA-03, duplicate-workspace warning, submit payload).
+const BROWSED_WORKSPACE: LocalWorkspace = {
+  id: "ws-1",
+  name: "project",
+  path: "/home/user/project",
+};
+
+vi.mock(
+  "#/components/features/home/workspace-dropdown/folder-browser-modal",
+  () => ({
+    FolderBrowserModal: ({
+      isOpen,
+      onAdd,
+    }: {
+      isOpen: boolean;
+      onAdd: (items: LocalWorkspace[]) => void;
+    }) =>
+      isOpen ? (
+        <button
+          type="button"
+          data-testid="folder-browser-modal-pick"
+          onClick={() => onAdd([BROWSED_WORKSPACE])}
+        />
+      ) : null,
+  }),
+);
+
 const CLOUD_REPO = {
   id: "repo-1",
   full_name: "acme/api",
   git_provider: "github",
   is_public: false,
 };
+
+async function browseAndPickWorkspace(
+  user: ReturnType<typeof userEvent.setup>,
+) {
+  await user.click(screen.getByTestId("aik-system-form-browse-workspace"));
+  await user.click(screen.getByTestId("folder-browser-modal-pick"));
+}
 
 describe("AikSystemForm", () => {
   beforeEach(() => {
@@ -55,22 +99,21 @@ describe("AikSystemForm", () => {
       tasksBySystemId: {},
       errorBySystemId: {},
     });
-    useLocalWorkspacesMock.mockReturnValue({
-      data: { workspaces: [LOCAL_WORKSPACE], workspaceParents: [] },
-    });
     useGitRepositoriesMock.mockReturnValue({ data: undefined });
     useUserProvidersMock.mockReturnValue({ providers: ["github"] });
+    addWorkspacesMock.mockClear();
   });
 
-  // CA-03: local backend only lists useLocalWorkspaces(), never both fields.
-  it("lists only the workspace field for a local backend", () => {
+  // CA-03: local backend only offers the folder-browser workspace field,
+  // never the repository field.
+  it("shows only the workspace field for a local backend", () => {
     vi.spyOn(activeStore, "getRegisteredBackends").mockReturnValue([
       LOCAL_BACKEND,
     ]);
     renderWithProviders(<AikSystemForm onSubmit={vi.fn()} onClose={vi.fn()} />);
 
     expect(
-      screen.getByTestId("aik-system-form-workspace-select"),
+      screen.getByTestId("aik-system-form-browse-workspace"),
     ).toBeInTheDocument();
     expect(
       screen.queryByTestId("aik-system-form-repository-select"),
@@ -91,7 +134,7 @@ describe("AikSystemForm", () => {
       screen.getByTestId("aik-system-form-repository-select"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("aik-system-form-workspace-select"),
+      screen.queryByTestId("aik-system-form-browse-workspace"),
     ).not.toBeInTheDocument();
   });
 
@@ -107,7 +150,7 @@ describe("AikSystemForm", () => {
     renderWithProviders(<AikSystemForm onSubmit={vi.fn()} onClose={vi.fn()} />);
 
     expect(
-      screen.getByTestId("aik-system-form-workspace-select"),
+      screen.getByTestId("aik-system-form-browse-workspace"),
     ).toBeInTheDocument();
 
     await user.selectOptions(
@@ -116,14 +159,14 @@ describe("AikSystemForm", () => {
     );
 
     expect(
-      screen.queryByTestId("aik-system-form-workspace-select"),
+      screen.queryByTestId("aik-system-form-browse-workspace"),
     ).not.toBeInTheDocument();
     expect(
       screen.getByTestId("aik-system-form-repository-select"),
     ).toBeInTheDocument();
   });
 
-  it("submits a local system with the chosen workspace", async () => {
+  it("submits a local system with the folder picked via the browser", async () => {
     const user = userEvent.setup();
     vi.spyOn(activeStore, "getRegisteredBackends").mockReturnValue([
       LOCAL_BACKEND,
@@ -138,10 +181,13 @@ describe("AikSystemForm", () => {
       screen.getByTestId("aik-system-form-name-input"),
       "My System",
     );
-    await user.selectOptions(
-      screen.getByTestId("aik-system-form-workspace-select"),
-      LOCAL_WORKSPACE.id,
-    );
+    await browseAndPickWorkspace(user);
+
+    expect(addWorkspacesMock).toHaveBeenCalledWith([BROWSED_WORKSPACE]);
+    expect(
+      screen.getByTestId("aik-system-form-workspace-path"),
+    ).toHaveTextContent(BROWSED_WORKSPACE.path);
+
     await user.click(screen.getByTestId("aik-system-form-submit"));
 
     expect(onSubmit).toHaveBeenCalledWith({
@@ -149,11 +195,21 @@ describe("AikSystemForm", () => {
       backendId: LOCAL_BACKEND.id,
       workspaceRef: {
         kind: "local",
-        workspaceId: LOCAL_WORKSPACE.id,
-        path: LOCAL_WORKSPACE.path,
+        workspaceId: BROWSED_WORKSPACE.id,
+        path: BROWSED_WORKSPACE.path,
       },
     });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  // Submit stays disabled until a folder has actually been picked.
+  it("keeps submit disabled for a local backend until a workspace is picked", () => {
+    vi.spyOn(activeStore, "getRegisteredBackends").mockReturnValue([
+      LOCAL_BACKEND,
+    ]);
+    renderWithProviders(<AikSystemForm onSubmit={vi.fn()} onClose={vi.fn()} />);
+
+    expect(screen.getByTestId("aik-system-form-submit")).toBeDisabled();
   });
 
   // SPEC §4: warns (does not block) when the chosen local workspace is
@@ -171,8 +227,8 @@ describe("AikSystemForm", () => {
           backendId: LOCAL_BACKEND.id,
           workspaceRef: {
             kind: "local",
-            workspaceId: LOCAL_WORKSPACE.id,
-            path: LOCAL_WORKSPACE.path,
+            workspaceId: BROWSED_WORKSPACE.id,
+            path: BROWSED_WORKSPACE.path,
           },
           columnId: "ativo",
           activeAgentTaskId: null,
@@ -193,10 +249,7 @@ describe("AikSystemForm", () => {
       screen.getByTestId("aik-system-form-name-input"),
       "Second System",
     );
-    await user.selectOptions(
-      screen.getByTestId("aik-system-form-workspace-select"),
-      LOCAL_WORKSPACE.id,
-    );
+    await browseAndPickWorkspace(user);
 
     expect(
       screen.getByTestId("aik-system-form-duplicate-workspace-warning"),

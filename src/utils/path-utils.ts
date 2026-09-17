@@ -120,3 +120,35 @@ export const getPathBasename = (path: string): string => {
   );
   return idx >= 0 ? normalized.slice(idx + 1) : normalized;
 };
+
+/**
+ * Trims trailing separators, keeping a single one for Windows drive roots
+ * (`C:/`, `C:\`) so they stay recognizable as roots.
+ */
+export const trimTrailingSeparators = (path: string): string => {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  if (/^[A-Za-z]:$/.test(trimmed)) {
+    const separator = path.includes("/") && !path.includes("\\") ? "/" : "\\";
+    return `${trimmed}${separator}`;
+  }
+  return trimmed;
+};
+
+/**
+ * Returns the directory containing `path`, preserving the separator style of
+ * the original (`/a/b` -> `/a`, `C:\a\b` -> `C:\a`). Returns `null` when there
+ * is no parent to walk to: filesystem roots (`/`, `C:\`) and bare names.
+ */
+export const getPathDirectory = (path: string): string | null => {
+  const trimmed = trimTrailingSeparators(path);
+  if (!trimmed || trimmed === "/" || /^[A-Za-z]:[\\/]?$/.test(trimmed)) {
+    return null;
+  }
+
+  const idx = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  if (idx < 0) return null;
+  if (idx === 0) return "/";
+
+  const parent = trimmed.slice(0, idx);
+  return /^[A-Za-z]:$/.test(parent) ? `${parent}${trimmed[idx]}` : parent;
+};

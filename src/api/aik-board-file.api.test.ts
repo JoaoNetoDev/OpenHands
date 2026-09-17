@@ -242,16 +242,38 @@ describe("readAikSystemFile", () => {
     expect(cwd).toBe("/workspace");
   });
 
-  it("returns workspace_unreachable when cat exits non-zero", async () => {
+  it("returns workspace_unreachable when cat fails for a reason other than a missing file", async () => {
     executeCommandMock.mockResolvedValue({
       exit_code: 1,
       stdout: "",
-      stderr: "no such file",
+      stderr: "cat: /workspace/.openhands/aik/system.json: Permission denied",
     });
 
     const result = await readAikSystemFile("/workspace");
 
     expect(result).toEqual({ ok: false, errorType: "workspace_unreachable" });
+  });
+
+  // A freshly created system has no system.json yet — that's the normal
+  // first-sync state, not an error. Regression test for a bug where a
+  // brand-new system always showed "workspace inacessível" because a
+  // missing-file `cat` failure was indistinguishable from a genuinely
+  // unreachable workspace.
+  it("returns ok:true with an empty file when system.json does not exist yet, instead of workspace_unreachable", async () => {
+    executeCommandMock.mockResolvedValue({
+      exit_code: 1,
+      stdout: "",
+      stderr:
+        "cat: /workspace/.openhands/aik/system.json: No such file or directory",
+    });
+
+    const result = await readAikSystemFile("/workspace");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.file.phases).toEqual([]);
+      expect(result.file.tasks).toEqual([]);
+    }
   });
 
   it("returns parse_error for malformed JSON, without throwing", async () => {
@@ -388,5 +410,80 @@ describe("writeAikSystemFile", () => {
     const base64Match = writeCommand.match(/printf '%s' '([^']*)'/);
     const writtenRaw = Buffer.from(base64Match![1], "base64").toString("utf-8");
     expect(writtenRaw).not.toContain("apiKey");
+  });
+
+  it("drops a tombstoned phase from the on-disk merge so a local delete persists", async () => {
+    // Disk still holds the pre-delete snapshot: two phases, one task in the
+    // doomed phase. Local already dropped both. Without tombstones the
+    // read-modify-write would re-add the phase (the disk copy wins the
+    // "present only on disk" rule) and the delete would silently un-do
+    // itself — the reported bug.
+    const onDisk = file({
+      phases: [
+        phase({ id: "keep-me" }),
+        phase({ id: "delete-me", title: "Relatórios" }),
+      ],
+      tasks: [task({ id: "task-in-deleted-phase", phaseId: "delete-me" })],
+    });
+    const toWrite = file({
+      phases: [phase({ id: "keep-me" })],
+      tasks: [],
+    });
+
+    executeCommandMock
+      .mockResolvedValueOnce({
+        exit_code: 0,
+        stdout: JSON.stringify(onDisk),
+        stderr: "",
+      }) // read
+      .mockResolvedValueOnce({ exit_code: 0, stdout: "", stderr: "" }); // write
+
+    const result = await writeAikSystemFile("/workspace", toWrite, {
+      phases: new Set(["delete-me"]),
+      tasks: new Set(["task-in-deleted-phase"]),
+    });
+
+    expect(result).toEqual({ ok: true });
+    const writeCommand = executeCommandMock.mock.calls[1][2];
+    const base64Match = writeCommand.match(/printf '%s' '([^']*)'/);
+    const written = JSON.parse(
+      Buffer.from(base64Match![1], "base64").toString("utf-8"),
+    ) as AikSystemFile;
+    expect(written.phases.map((p) => p.id)).toEqual(["keep-me"]);
+    expect(written.tasks).toEqual([]);
+  });
+
+  it("still preserves a non-tombstoned disk-only item (agent write) when merging", async () => {
+    const onDisk = file({
+      phases: [phase({ id: "agent-phase" })],
+      tasks: [],
+    });
+    const toWrite = file({
+      phases: [phase({ id: "browser-phase" })],
+      tasks: [],
+    });
+
+    executeCommandMock
+      .mockResolvedValueOnce({
+        exit_code: 0,
+        stdout: JSON.stringify(onDisk),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({ exit_code: 0, stdout: "", stderr: "" });
+
+    await writeAikSystemFile("/workspace", toWrite, {
+      phases: new Set(["some-other-phase"]),
+      tasks: new Set(),
+    });
+
+    const writeCommand = executeCommandMock.mock.calls[1][2];
+    const base64Match = writeCommand.match(/printf '%s' '([^']*)'/);
+    const written = JSON.parse(
+      Buffer.from(base64Match![1], "base64").toString("utf-8"),
+    ) as AikSystemFile;
+    expect(written.phases.map((p) => p.id).sort()).toEqual([
+      "agent-phase",
+      "browser-phase",
+    ]);
   });
 });

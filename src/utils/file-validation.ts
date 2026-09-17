@@ -1,5 +1,21 @@
-const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB maximum file size
-const MAX_TOTAL_SIZE = 3 * 1024 * 1024; // 3MB maximum total size for all files combined
+import { isFileImage } from "#/utils/is-file-image";
+
+/** Per-file cap for non-image attachments (documents, archives, data). */
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+/**
+ * Images get a lower cap than other files: unless the user marks them
+ * "upload as file", they are base64-encoded into the message content sent to
+ * the LLM, which inflates the payload by ~4/3 and eats the model's context.
+ * Regular files are streamed to the workspace upload endpoint instead.
+ */
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_TOTAL_SIZE = 25 * 1024 * 1024; // 25MB maximum total size for all files combined
+
+const limitFor = (file: File): number =>
+  isFileImage(file) ? MAX_IMAGE_SIZE : MAX_FILE_SIZE;
+
+const toMegabytes = (bytes: number): string =>
+  `${Math.round(bytes / (1024 * 1024))}MB`;
 
 export interface FileValidationResult {
   isValid: boolean;
@@ -13,14 +29,16 @@ export interface FileValidationResult {
 export function validateIndividualFileSizes(
   files: File[],
 ): FileValidationResult {
-  const oversizedFiles = files.filter((file) => file.size > MAX_FILE_SIZE);
+  const oversizedFiles = files.filter((file) => file.size > limitFor(file));
 
   if (oversizedFiles.length > 0) {
-    const fileNames = oversizedFiles.map((f) => f.name);
+    const details = oversizedFiles
+      .map((f) => `${f.name} (${toMegabytes(limitFor(f))} max)`)
+      .join(", ");
     return {
       isValid: false,
-      errorMessage: `Files exceeding 3MB are not allowed: ${fileNames.join(", ")}`,
-      oversizedFiles: fileNames,
+      errorMessage: `Files exceeding the size limit are not allowed: ${details}`,
+      oversizedFiles: oversizedFiles.map((f) => f.name),
     };
   }
 
@@ -45,7 +63,9 @@ export function validateTotalFileSize(
     const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(1);
     return {
       isValid: false,
-      errorMessage: `Total file size would be ${totalSizeMB}MB, exceeding the 3MB limit. Please select fewer or smaller files.`,
+      errorMessage: `Total file size would be ${totalSizeMB}MB, exceeding the ${toMegabytes(
+        MAX_TOTAL_SIZE,
+      )} limit. Please select fewer or smaller files.`,
     };
   }
 

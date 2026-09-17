@@ -322,23 +322,21 @@ describe("Sidebar", () => {
     );
   });
 
-  it("shows the Sistema link below the backend selector when expanded", () => {
+  it("does not offer Board or Sistema entries in the sidebar", () => {
     renderSidebar("/conversations");
 
-    const backendSelector = screen.getByTestId("backend-selector");
-    const systemLink = screen.getByTestId("sidebar-system-link");
-    expect(backendSelector.compareDocumentPosition(systemLink)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    expect(screen.getByTestId("backend-selector")).toBeInTheDocument();
+    expect(screen.queryByTestId("sidebar-board-link")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("sidebar-system-link")).not.toBeInTheDocument();
   });
 
-  it("shows a collapsed Sistema icon when the sidebar is collapsed", () => {
+  it("does not offer a collapsed Sistema entry when the sidebar is collapsed", () => {
     useSidebarStore.setState({ collapsed: true });
     renderSidebar("/conversations");
 
     expect(
-      screen.getByTestId("sidebar-collapsed-system-link"),
-    ).toBeInTheDocument();
+      screen.queryByTestId("sidebar-collapsed-system-link"),
+    ).not.toBeInTheDocument();
   });
 
   it("hides the version tile when the sidebar is collapsed", () => {

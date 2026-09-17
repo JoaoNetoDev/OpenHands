@@ -12,6 +12,12 @@ interface DropdownItemProps<T> {
   isSelected: boolean;
   getItemProps: <Options>(options: any & Options) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
   getDisplayText: (item: T) => string;
+  /**
+   * Optional muted second line under the display text, used when the display
+   * text alone does not identify the item (e.g. two folders with the same
+   * name, disambiguated by their directory).
+   */
+  getSecondaryText?: (item: T) => string | null;
   getItemKey: (item: T) => string;
   isProviderDropdown?: boolean;
   renderIcon?: (item: T) => React.ReactNode;
@@ -30,12 +36,14 @@ export function DropdownItem<T>({
   isSelected,
   getItemProps,
   getDisplayText,
+  getSecondaryText,
   getItemKey,
   isProviderDropdown = false,
   renderIcon,
   itemClassName,
   ariaLabel,
 }: DropdownItemProps<T>) {
+  const secondaryText = getSecondaryText?.(item) ?? null;
   const itemProps = getItemProps({
     index,
     item,
@@ -62,7 +70,14 @@ export function DropdownItem<T>({
             {renderIcon(item)}
           </span>
         ) : null}
-        <span className="font-normal">{getDisplayText(item)}</span>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate font-normal">{getDisplayText(item)}</span>
+          {secondaryText ? (
+            <span className="truncate text-xs leading-4 text-[var(--oh-muted)]">
+              {secondaryText}
+            </span>
+          ) : null}
+        </div>
       </div>
     </li>
   );

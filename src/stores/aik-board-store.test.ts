@@ -6,17 +6,74 @@ vi.mock("#/api/aik-pipeline.api", () => ({
   startAikAgentTask: (...args: unknown[]) => startAikAgentTaskMock(...args),
 }));
 
+type AikWriteResult =
+  | { ok: true }
+  | {
+      ok: false;
+      errorType:
+        | "backend_down"
+        | "workspace_unreachable"
+        | "cloud_unsupported"
+        | "conflict"
+        | "parse_error";
+    };
+
 const readAikSystemFileMock = vi.fn();
+const writeAikSystemFileMock = vi.fn(
+  async (...args: unknown[]): Promise<AikWriteResult> => {
+    void args;
+    return Promise.resolve({ ok: true });
+  },
+);
+
+/** Mirrors `mergeById` (`src/api/aik-board-file.api.ts:73-90`): fuse by `id`,
+ * most recent `updatedAt` wins, disk-only items are kept UNLESS tombstoned.
+ * Keeping this faithful matters — a naive concat would happily "resurrect"
+ * a deleted phase in the tests below and mask the very bug they guard. */
+function mergeByIdMock<T extends { id: string; updatedAt: string }>(
+  disk: T[],
+  incoming: T[],
+  tombstones?: ReadonlySet<string>,
+): T[] {
+  const byId = new Map<string, T>();
+  for (const item of disk) {
+    if (tombstones?.has(item.id)) continue;
+    byId.set(item.id, item);
+  }
+  for (const item of incoming) {
+    const existing = byId.get(item.id);
+    if (!existing || new Date(item.updatedAt) >= new Date(existing.updatedAt)) {
+      byId.set(item.id, item);
+    }
+  }
+  return Array.from(byId.values());
+}
+
+interface MergeTombstonesArg {
+  phases?: ReadonlySet<string>;
+  tasks?: ReadonlySet<string>;
+}
+
 vi.mock("#/api/aik-board-file.api", () => ({
   readAikSystemFile: (...args: unknown[]) => readAikSystemFileMock(...args),
+  writeAikSystemFile: (...args: unknown[]) => writeAikSystemFileMock(...args),
   mergeAikSystemFiles: (
-    local: { phases: unknown[]; tasks: unknown[] },
-    remote: { phases: unknown[]; tasks: unknown[] },
+    local: { systemId: string; phases: unknown[]; tasks: unknown[] },
+    remote: { systemId: string; phases: unknown[]; tasks: unknown[] },
+    tombstones?: MergeTombstonesArg,
   ) => ({
     version: 1,
-    systemId: "merged",
-    phases: [...local.phases, ...remote.phases],
-    tasks: [...local.tasks, ...remote.tasks],
+    systemId: remote.systemId || local.systemId,
+    phases: mergeByIdMock(
+      local.phases as { id: string; updatedAt: string }[],
+      remote.phases as { id: string; updatedAt: string }[],
+      tombstones?.phases,
+    ),
+    tasks: mergeByIdMock(
+      local.tasks as { id: string; updatedAt: string }[],
+      remote.tasks as { id: string; updatedAt: string }[],
+      tombstones?.tasks,
+    ),
     updatedAt: new Date().toISOString(),
   }),
 }));
@@ -37,7 +94,13 @@ vi.mock(
 );
 
 // Imported AFTER the mocks above so the store picks up the mocked modules.
-const { useAikBoardStore } = await import("#/stores/aik-board-store");
+const {
+  useAikBoardStore,
+  __flushAikDiskWritesForTests,
+  __resetAikDiskWriteCacheForTests,
+  __clearPendingAikSystemWritesForTests,
+  __getPendingAikTombstonesForTests,
+} = await import("#/stores/aik-board-store");
 
 const LOCAL_WORKSPACE_REF: AikWorkspaceRef = {
   kind: "local",
@@ -72,13 +135,30 @@ function setupSystemWithPhase(
     workspaceRef,
   });
   const phase = createPhase(system.id, "Fase 1");
+  // `createSystem` and `createPhase` schedule a debounced disk write, which
+  // marks the system as "write pending" — the gate that protects
+  // `syncFromFile` from re-reading stale disk while our mutation is in
+  // flight. Most tests don't care, but the `syncFromFile` and rehydrate
+  // tests call `syncFromFile` immediately after setup and need the flag
+  // cleared so the read goes through. We use the surgical helper (set
+  // only) instead of the full `__resetAikDiskWriteCacheForTests` so the
+  // debounce timer set by `createSystem`/`createPhase` is preserved for
+  // the persistence tests that depend on it firing 500 ms later.
+  __clearPendingAikSystemWritesForTests();
   return { system, phase };
 }
 
 beforeEach(() => {
   resetStore();
+  __resetAikDiskWriteCacheForTests();
+  // Wipe the persisted slot so a previous test's systems don't bleed into
+  // this one (zustand `persist` rehydrates synchronously on store creation,
+  // so we need to clear it before any `createSystem` runs in the test body).
+  localStorage.removeItem("openhands:aik-board-store");
   startAikAgentTaskMock.mockReset();
   readAikSystemFileMock.mockReset();
+  writeAikSystemFileMock.mockReset();
+  writeAikSystemFileMock.mockResolvedValue({ ok: true });
   pauseConversationMock.mockReset();
   sendMessageMock.mockReset();
   startAikAgentTaskMock.mockResolvedValue({
@@ -89,8 +169,11 @@ beforeEach(() => {
   sendMessageMock.mockResolvedValue(undefined);
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.useRealTimers();
+  // Drain any debounced write so the next test's `expect(writeAikSystemFileMock).toHaveBeenCalledTimes`
+  // starts from a clean slate.
+  await __flushAikDiskWritesForTests();
 });
 
 describe("RF-09 phase column aggregation (CA-07)", () => {
@@ -436,6 +519,10 @@ describe("syncFromFile (CA-25, CA-38, CA-39)", () => {
       backendId: "backend-2",
       workspaceRef: LOCAL_WORKSPACE_REF,
     });
+    // `createSystem` schedules a debounced write which marks system2 as
+    // pending — clear that so the `syncFromFile` call below can actually
+    // hit the disk.
+    __clearPendingAikSystemWritesForTests();
     readAikSystemFileMock.mockResolvedValueOnce({
       ok: false,
       errorType: "workspace_unreachable",
@@ -461,6 +548,9 @@ describe("syncFromFile (CA-25, CA-38, CA-39)", () => {
       backendId: "backend-ok",
       workspaceRef: LOCAL_WORKSPACE_REF,
     });
+    // Both systems were just created via `createSystem`, which marked them
+    // as write-pending — clear so the `syncFromFile` calls below hit disk.
+    __clearPendingAikSystemWritesForTests();
 
     readAikSystemFileMock.mockImplementation(async (path: string) => {
       if (path === LOCAL_WORKSPACE_REF.path) {
@@ -547,5 +637,385 @@ describe("startPolling", () => {
 
     stop();
     vi.unstubAllGlobals();
+  });
+});
+
+describe("persistence (RF-26 / CA-24)", () => {
+  it("createSystem for a local workspace schedules a debounced writeAikSystemFile with the current file", async () => {
+    vi.useFakeTimers();
+    const { system } = setupSystemWithPhase(LOCAL_WORKSPACE_REF);
+
+    // Not yet — debounce window is 500 ms.
+    expect(writeAikSystemFileMock).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(499);
+    expect(writeAikSystemFileMock).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    await __flushAikDiskWritesForTests();
+
+    expect(writeAikSystemFileMock).toHaveBeenCalledTimes(1);
+    const [path, file] = writeAikSystemFileMock.mock.calls[0] as [
+      string,
+      {
+        version: number;
+        systemId: string;
+        phases: unknown[];
+        tasks: unknown[];
+      },
+    ];
+    expect(path).toBe(LOCAL_WORKSPACE_REF.path);
+    expect(file.systemId).toBe(system.id);
+    expect(file.version).toBe(1);
+    expect(file.phases).toHaveLength(1);
+    expect(file.tasks).toEqual([]);
+  });
+
+  it("does NOT schedule a disk write for cloud systems (SPEC §2.4)", async () => {
+    vi.useFakeTimers();
+    setupSystemWithPhase(CLOUD_WORKSPACE_REF);
+    vi.advanceTimersByTime(1000);
+    await __flushAikDiskWritesForTests();
+    expect(writeAikSystemFileMock).not.toHaveBeenCalled();
+  });
+
+  it("coalesces a burst of mutations into one write (500 ms debounce window)", async () => {
+    vi.useFakeTimers();
+    const { system, phase } = setupSystemWithPhase(LOCAL_WORKSPACE_REF);
+    const { createTask, updateTask, moveTask } = useAikBoardStore.getState();
+    const task = createTask(phase.id, { title: "T1" });
+    updateTask(task.id, { title: "T1 renamed" });
+    moveTask(task.id, "in_progress", 0);
+
+    // Still inside the debounce window — single coalesced write.
+    vi.advanceTimersByTime(500);
+    await __flushAikDiskWritesForTests();
+    expect(writeAikSystemFileMock).toHaveBeenCalledTimes(1);
+
+    // Subsequent identical state (no new mutation) shouldn't trigger another write.
+    // Touch a non-serialized slice to force a `set` without changing the
+    // file content, then re-flush — the lastWritten cache should skip it.
+    useAikBoardStore.setState((prev) => ({
+      errorBySystemId: { ...prev.errorBySystemId },
+    }));
+    vi.advanceTimersByTime(1000);
+    await __flushAikDiskWritesForTests();
+    expect(writeAikSystemFileMock).toHaveBeenCalledTimes(1);
+
+    // A real mutation produces another coalesced write.
+    updateTask(task.id, { title: "T1 renamed again" });
+    vi.advanceTimersByTime(500);
+    await __flushAikDiskWritesForTests();
+    expect(writeAikSystemFileMock).toHaveBeenCalledTimes(2);
+
+    // Sanity: the file content reflects the latest title.
+    const [, lastFile] = writeAikSystemFileMock.mock.calls[1] as [
+      string,
+      {
+        version: number;
+        systemId: string;
+        tasks: { title: string }[];
+        phases: unknown[];
+      },
+    ];
+    expect(lastFile.tasks[0].title).toBe("T1 renamed again");
+    expect(lastFile.systemId).toBe(system.id);
+  });
+
+  it("deleteSystem clears the per-system last-written cache so no orphan write happens", async () => {
+    vi.useFakeTimers();
+    const { system } = setupSystemWithPhase(LOCAL_WORKSPACE_REF);
+    vi.advanceTimersByTime(500);
+    await __flushAikDiskWritesForTests();
+    expect(writeAikSystemFileMock).toHaveBeenCalledTimes(1);
+
+    useAikBoardStore.getState().deleteSystem(system.id);
+
+    // After delete, the system is gone from state.systems so the flush
+    // iterator skips it — no extra write. The cache entry for the deleted
+    // id is also gone (verified indirectly: a fresh createSystem with a
+    // new UUID will not be blocked by a stale cache hit).
+    vi.advanceTimersByTime(500);
+    await __flushAikDiskWritesForTests();
+    expect(writeAikSystemFileMock).toHaveBeenCalledTimes(1);
+
+    // A brand-new system with a fresh UUID writes again.
+    const { createSystem } = useAikBoardStore.getState();
+    createSystem({
+      name: "Sistema novo",
+      backendId: "backend-1",
+      workspaceRef: LOCAL_WORKSPACE_REF,
+    });
+    vi.advanceTimersByTime(500);
+    await __flushAikDiskWritesForTests();
+    expect(writeAikSystemFileMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("writeAikSystemFile failure routes the error to errorBySystemId for the board to surface", async () => {
+    vi.useFakeTimers();
+    writeAikSystemFileMock.mockResolvedValueOnce({
+      ok: false,
+      errorType: "workspace_unreachable",
+    });
+    const { system } = setupSystemWithPhase(LOCAL_WORKSPACE_REF);
+    vi.advanceTimersByTime(500);
+    await __flushAikDiskWritesForTests();
+
+    expect(
+      useAikBoardStore.getState().errorBySystemId[system.id]?.errorType,
+    ).toBe("workspace_unreachable");
+  });
+
+  // Regression: without the `pendingSystemWrites` gate, the 4 s polling
+  // tick could fire inside the 500 ms disk-write debounce window, read the
+  // pre-delete `system.json`, and `mergeAikSystemFiles` would re-add the
+  // deleted phase. The user would see the phase come back to life right
+  // after they clicked delete.
+  it("a deleted phase does NOT come back after the debounced write and a later polling tick", async () => {
+    vi.useFakeTimers();
+    const { system, phase } = setupSystemWithPhase(LOCAL_WORKSPACE_REF);
+
+    // --- Simulated disk -----------------------------------------------------
+    // `writeAikSystemFileMock` writes into this variable instead of a real
+    // file, and `readAikSystemFileMock` reads from it. That lets the test
+    // assert the real end-to-end outcome ("the phase is gone from disk and
+    // stays gone") rather than an intermediate flag.
+    let disk: {
+      version: number;
+      systemId: string;
+      phases: { id: string; updatedAt: string }[];
+      tasks: { id: string; updatedAt: string }[];
+      updatedAt: string;
+    } = {
+      version: 1,
+      systemId: system.id,
+      phases: [{ ...phase }],
+      tasks: [],
+      updatedAt: "2026-09-16T17:20:39.009Z",
+    };
+    readAikSystemFileMock.mockImplementation(async () => ({
+      ok: true,
+      file: structuredClone(disk),
+    }));
+    writeAikSystemFileMock.mockImplementation(async (...args: unknown[]) => {
+      // Mirror what the real `writeAikSystemFile` does: read-modify-write
+      // against whatever is on disk, honoring the tombstones.
+      const fileToWrite = args[1];
+      const tombstones = args[2] as MergeTombstonesArg | undefined;
+      const incoming = fileToWrite as typeof disk;
+      disk = {
+        ...incoming,
+        phases: mergeByIdMock(disk.phases, incoming.phases, tombstones?.phases),
+        tasks: mergeByIdMock(disk.tasks, incoming.tasks, tombstones?.tasks),
+      };
+      return { ok: true };
+    });
+
+    // Settle the initial `createSystem`/`createPhase` write so the disk
+    // snapshot above is what "was on disk" before the user acts.
+    vi.advanceTimersByTime(500);
+    await __flushAikDiskWritesForTests();
+    expect(disk.phases.map((p) => p.id)).toEqual([phase.id]);
+
+    // --- The user deletes the phase ----------------------------------------
+    useAikBoardStore.getState().deletePhase(phase.id);
+    expect(
+      useAikBoardStore.getState().phasesBySystemId[system.id],
+    ).toHaveLength(0);
+
+    // --- A polling tick lands inside the 500 ms debounce window ------------
+    // Without the pending-write gate this reads the pre-delete disk (still
+    // holding `phase`), merges it back in, and the phase resurrects.
+    await useAikBoardStore.getState().syncFromFile(system.id);
+    expect(
+      useAikBoardStore.getState().phasesBySystemId[system.id],
+    ).toHaveLength(0);
+
+    // --- The debounced write fires -----------------------------------------
+    vi.advanceTimersByTime(500);
+    await __flushAikDiskWritesForTests();
+
+    // The deletion must have reached the simulated disk. This is the
+    // assertion that actually reproduces the reported bug: before tombstones,
+    // the write's own read-modify-write put the phase right back.
+    expect(disk.phases).toEqual([]);
+
+    // --- And a later polling tick doesn't resurrect it either --------------
+    // This is the ~2-3 s mark in the live report: the delete looked fine
+    // until a subsequent poll re-merged the stale file.
+    await useAikBoardStore.getState().syncFromFile(system.id);
+    expect(
+      useAikBoardStore.getState().phasesBySystemId[system.id],
+    ).toHaveLength(0);
+
+    // Three real round trips: the initial create write, the delete write (the
+    // polling tick above was gated so it never read), and the final poll's
+    // read.
+    expect(readAikSystemFileMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("deletePhase tombstones the phase and its descendant tasks", () => {
+    const { system, phase } = setupSystemWithPhase(LOCAL_WORKSPACE_REF);
+    const { createTask } = useAikBoardStore.getState();
+    const task = createTask(phase.id, {
+      title: "Tarefa filha",
+      executorType: "human",
+      priority: "p1",
+    });
+
+    useAikBoardStore.getState().deletePhase(phase.id);
+
+    expect(__getPendingAikTombstonesForTests(system.id)).toEqual({
+      phases: [phase.id],
+      tasks: [task.id],
+    });
+  });
+
+  it("deleteTask tombstones the task", () => {
+    const { system, phase } = setupSystemWithPhase(LOCAL_WORKSPACE_REF);
+    const { createTask } = useAikBoardStore.getState();
+    const task = createTask(phase.id, {
+      title: "Tarefa",
+      executorType: "human",
+      priority: "p1",
+    });
+
+    useAikBoardStore.getState().deleteTask(task.id);
+
+    expect(__getPendingAikTombstonesForTests(system.id)?.tasks).toEqual([
+      task.id,
+    ]);
+  });
+
+  it("clears a system's tombstones after a successful write", async () => {
+    vi.useFakeTimers();
+    const { system, phase } = setupSystemWithPhase(LOCAL_WORKSPACE_REF);
+    vi.advanceTimersByTime(500);
+    await __flushAikDiskWritesForTests();
+
+    useAikBoardStore.getState().deletePhase(phase.id);
+    expect(__getPendingAikTombstonesForTests(system.id)?.phases).toEqual([
+      phase.id,
+    ]);
+
+    vi.advanceTimersByTime(500);
+    await __flushAikDiskWritesForTests();
+
+    expect(__getPendingAikTombstonesForTests(system.id)).toBeUndefined();
+  });
+
+  it("hydrates systems, phasesBySystemId, tasksBySystemId from localStorage on a fresh store", async () => {
+    // `onRehydrateStorage` schedules a `syncFromFile` via `queueMicrotask`,
+    // which the store will attempt to run after the rehydrate resolves —
+    // so the mock must return a valid envelope (not undefined), otherwise
+    // the microtask surfaces an unhandled rejection.
+    readAikSystemFileMock.mockResolvedValue({
+      ok: true,
+      file: {
+        version: 1,
+        systemId: "sys-persisted",
+        phases: [],
+        tasks: [],
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    // Seed the localStorage slot as if a previous browser session persisted it.
+    const persisted = {
+      state: {
+        systems: [
+          {
+            id: "sys-persisted",
+            name: "Sistema persistido",
+            backendId: "backend-1",
+            workspaceRef: LOCAL_WORKSPACE_REF,
+            columnId: "ativo",
+            activeAgentTaskId: null,
+            createdAt: "2026-09-16T00:00:00.000Z",
+            updatedAt: "2026-09-16T00:00:00.000Z",
+          },
+        ],
+        phasesBySystemId: {
+          "sys-persisted": [
+            {
+              id: "phase-persisted",
+              systemId: "sys-persisted",
+              title: "Fase persistida",
+              columnId: "backlog",
+              order: 0,
+              createdAt: "2026-09-16T00:00:00.000Z",
+              updatedAt: "2026-09-16T00:00:00.000Z",
+            },
+          ],
+        },
+        tasksBySystemId: { "sys-persisted": [] },
+      },
+      version: 1,
+    };
+    localStorage.setItem(
+      "openhands:aik-board-store",
+      JSON.stringify(persisted),
+    );
+
+    // The persist middleware rehydrates synchronously on the next call to
+    // `useAikBoardStore.persist.rehydrate()` — or, in dev mock mode, by the
+    // time we re-import. Easier: directly rehydrate here.
+    await useAikBoardStore.persist.rehydrate();
+
+    // Let the queueMicrotask drain so the `syncFromFile` it kicks off has
+    // a chance to land before the assertions run.
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(useAikBoardStore.getState().systems).toHaveLength(1);
+    expect(useAikBoardStore.getState().systems[0].id).toBe("sys-persisted");
+    expect(
+      useAikBoardStore.getState().phasesBySystemId["sys-persisted"],
+    ).toHaveLength(1);
+    // errorBySystemId is NOT persisted — confirms partialize.
+    expect(
+      useAikBoardStore.getState().errorBySystemId["sys-persisted"],
+    ).toBeUndefined();
+  });
+
+  it("on rehydrate, triggers syncFromFile for every persisted local system so the agent's edits are pulled in", async () => {
+    readAikSystemFileMock.mockResolvedValue({
+      ok: true,
+      file: {
+        version: 1,
+        systemId: "sys-persisted",
+        phases: [],
+        tasks: [],
+        updatedAt: "2026-09-16T01:00:00.000Z",
+      },
+    });
+    localStorage.setItem(
+      "openhands:aik-board-store",
+      JSON.stringify({
+        state: {
+          systems: [
+            {
+              id: "sys-persisted",
+              name: "Sistema persistido",
+              backendId: "backend-1",
+              workspaceRef: LOCAL_WORKSPACE_REF,
+              columnId: "ativo",
+              activeAgentTaskId: null,
+              createdAt: "2026-09-16T00:00:00.000Z",
+              updatedAt: "2026-09-16T00:00:00.000Z",
+            },
+          ],
+          phasesBySystemId: { "sys-persisted": [] },
+          tasksBySystemId: { "sys-persisted": [] },
+        },
+        version: 1,
+      }),
+    );
+
+    await useAikBoardStore.persist.rehydrate();
+
+    // The rehydrate callback fires syncFromFile fire-and-forget; give the
+    // microtask queue a turn.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(readAikSystemFileMock).toHaveBeenCalledWith(
+      LOCAL_WORKSPACE_REF.path,
+    );
   });
 });

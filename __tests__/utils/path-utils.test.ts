@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getPathBasename,
+  getPathDirectory,
   looksLikeWorkspaceFilePath,
   stripWorkspacePrefix,
   toFilesTabPath,
@@ -35,6 +36,21 @@ describe("getPathBasename", () => {
   it("preserves relative basenames", () => {
     expect(getPathBasename("repo")).toBe("repo");
     expect(getPathBasename("./repo")).toBe("repo");
+  });
+});
+
+describe("getPathDirectory", () => {
+  it("returns the containing directory for POSIX and Windows paths", () => {
+    expect(getPathDirectory("/home/me/public_html")).toBe("/home/me");
+    expect(getPathDirectory("C:\\sites\\a\\public_html")).toBe("C:\\sites\\a");
+    expect(getPathDirectory("/home/me/public_html/")).toBe("/home/me");
+  });
+
+  it("returns null when there is no directory above the path", () => {
+    expect(getPathDirectory("")).toBeNull();
+    expect(getPathDirectory("/")).toBeNull();
+    expect(getPathDirectory("C:\\")).toBeNull();
+    expect(getPathDirectory("repo")).toBeNull();
   });
 });
 

@@ -113,6 +113,21 @@ describe("AikPhasesBoard", () => {
     ).toBe(true);
   });
 
+  // Regression test: AikLayout (the parent route) already renders the
+  // breadcrumb once; AikPhasesBoard must not render a second one, or the
+  // trail duplicates on screen ("Sistemas / <id>" shown twice).
+  it("does not render its own breadcrumb (AikLayout already renders it once)", () => {
+    useAikBoardStore.setState({
+      systems: [makeSystem()],
+      phasesBySystemId: { [SYSTEM_ID]: [] },
+      tasksBySystemId: { [SYSTEM_ID]: [] },
+    });
+
+    renderWithProviders(<AikPhasesBoard />);
+
+    expect(screen.queryByTestId("aik-breadcrumb")).not.toBeInTheDocument();
+  });
+
   it("shows the empty-column placeholder for columns with no phases", () => {
     useAikBoardStore.setState({
       systems: [makeSystem()],

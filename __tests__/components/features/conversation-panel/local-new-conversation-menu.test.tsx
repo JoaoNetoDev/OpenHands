@@ -191,6 +191,34 @@ describe("LocalNewConversationMenu", () => {
     });
   });
 
+  it("shows a directory line for same-named workspaces so they are distinguishable", async () => {
+    // Arrange
+    renderMenu({
+      workspaces: [
+        {
+          id: "/srv/a/public_html",
+          name: "public_html",
+          path: "/srv/a/public_html",
+        },
+        {
+          id: "/srv/b/public_html",
+          name: "public_html",
+          path: "/srv/b/public_html",
+        },
+      ],
+    });
+    const user = userEvent.setup();
+
+    // Act
+    await user.click(screen.getByTestId("new-conversation-button"));
+
+    // Assert
+    const rows = await screen.findAllByTestId("launch-workspace");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("/srv/a");
+    expect(rows[1]).toHaveTextContent("/srv/b");
+  });
+
   it("disables launch actions while a conversation is being created", async () => {
     // Arrange
     vi.spyOn(

@@ -46,11 +46,14 @@ export function SwitchAcpProviderButton() {
 
   const otherAcpProfiles = React.useMemo<AgentProfileSummary[]>(() => {
     const currentId = profilesData?.active_agent_profile_id ?? null;
+    // Any profile kind (ACP wrapper OR OpenHands agent) is a valid fork
+    // target — the user's mental model is "switch to another provider /
+    // model", not "switch to another subprocess wrapper". An OpenHands
+    // profile (e.g. one bound to the Verboo LLM profile) is a first-class
+    // choice too. The active profile itself is always filtered out so we
+    // never render "switch to yourself".
     return (profilesData?.profiles ?? []).filter(
-      (profile) =>
-        profile.agent_kind === "acp" &&
-        profile.id != null &&
-        profile.id !== currentId,
+      (profile) => profile.id != null && profile.id !== currentId,
     );
   }, [profilesData]);
 

@@ -18,6 +18,7 @@ import {
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { cn } from "#/utils/utils";
 import { modalTitleSmClassName } from "#/utils/modal-classes";
+import { getPathDirectory } from "#/utils/path-utils";
 import FolderIcon from "#/icons/folder.svg?react";
 import ChevronLeft from "#/icons/chevron-left-small.svg?react";
 
@@ -82,19 +83,7 @@ function SidebarSection({
 }
 
 function getParentPath(path: string): string | null {
-  const trimmed = trimTrailingSeparators(path);
-  if (!trimmed || trimmed === "/" || isWindowsDriveRoot(trimmed)) return null;
-
-  const idx = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
-  if (idx < 0) return null;
-  if (idx === 0) return "/";
-
-  const parent = trimmed.slice(0, idx);
-  if (/^[A-Za-z]:$/.test(parent)) {
-    return `${parent}${trimmed[idx]}`;
-  }
-
-  return parent;
+  return getPathDirectory(path);
 }
 
 function isWindowsDriveRoot(path: string): boolean {

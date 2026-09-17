@@ -96,6 +96,81 @@ Sprint 03 / the tray UI detail lives in `2026-09-12.md`.
 - Custo de boot do knob local: ~5 s com cache do `uv` quente (o `--reinstall`
   refaz a resolução, mas não é caro com cache).
 
+## AIK kanban: por que o delete de fase "ressuscitava"
+
+O quadro AIK (`aik.zadotec.com.br`, `src/stores/aik-board-store.ts`) persiste cada
+system em `<workspace>/.openhands/aik/system.json`, com **dois escritores**: o
+browser (debounce de 500 ms em `flushSystemsToDisk`) e o próprio agente (RF-09,
+o prompt manda o agente editar esse arquivo). O `syncFromFile` faz polling a cada
+4 s. Isso cria duas corridas distintas e **as duas precisam de gate** — corrigir
+só uma não resolve o bug, foi exatamente o que aconteceu numa primeira tentativa:
+
+1. **Corrida no READ** (`syncFromFile`): um tick de polling cai dentro da janela
+   de debounce, lê o `system.json` *pré-delete* e faz merge de volta no store.
+   Gate: `pendingSystemWrites` (Set de `system.id`) — `syncFromFile` dá early
+   return enquanto há write pendente/in-flight.
+2. **Corrida no WRITE** (`writeAikSystemFile`, `src/api/aik-board-file.api.ts`):
+   o write é read-modify-write. Mesmo com o read gateado, o próprio write relê o
+   disco (que ainda tem a fase, porque nosso write não pousou) e o merge
+   "preserva item que só existe no disco" → reescreve a fase deletada. Gate:
+   `pendingTombstonesBySystem` — IDs deletadas são passadas ao write e removidas
+   do merge do disco. É a correção que de fato resolve o sintoma.
+
+- **Ausência não tem `updatedAt`.** `mergeById` resolve conflito por
+  `updatedAt` e mantém qualquer item presente em um dos lados; um delete é
+  *ausência* de item, então o merge não tem como representá-lo. Daí tombstones
+  explícitos em vez de tentar um cutoff por timestamp.
+- **Ordem importa:** capture o tombstone *dentro* do callback do `set` que faz a
+  deleção — depois do `set` os IDs já não existem no state.
+- O mock de `mergeAikSystemFiles` nos testes do store era um concat ingênuo e
+  mascarava o bug. Ele agora espelha `mergeById` (dedup por id, respeita
+  tombstones). Ao mexer na semântica do merge, atualize o mock junto — senão o
+  teste de regressão vira decorativo.
+- Os chunks são servidos com `cache-control: immutable, max-age=31536000`: um
+  deploy só chega ao usuário com **hard reload** (ou hash de chunk novo).
+- `src/stores/aik-board-store.test.ts` cai num teste de "disco simulado"
+  (`readAikSystemFileMock`/`writeAikSystemFileMock` operando sobre uma variável),
+  que é o que reproduz o sintoma ponta-a-ponta. Prefira esse formato a asserções
+  sobre flags intermediárias.
+
+## Limite de anexo do Canvas
+
+- O teto de 3MB era **client-side**, em `src/utils/file-validation.ts`. Nenhum
+  limite no backend: `POST /api/file/upload` streama em chunks de 8KB sem cap.
+- Tetos atuais (bump de 2026-09-15): **25MB** para arquivo/total, **5MB** para
+  imagem. A divisão existe porque imagem não marcada como "upload as file" vira
+  base64 no prompt do LLM; arquivo comum vai por upload HTTP pro workspace.
+- **`it.each` com objetos `File` nos args derruba o Vitest** (RangeError na
+  coleta; no pool `forks` mascara como "Worker exited unexpectedly" — use
+  `--pool=threads` pra ver o erro). Passe só escalares e construa o `File`
+  dentro do teste.
+
+## Workspaces homônimos no seletor (`public_html`)
+
+- `getWorkspaceSecondaryLabels()` em `src/utils/workspace-display.ts` devolve,
+  só para nomes que colidem, o diretório que desambigua (linha secundária no
+  `DropdownItem` e no controle fechado do `WorkspaceDropdown`).
+- **Nunca derive esse diretório de `workspace.parentPath`**: workspaces vindos de
+  um workspace-parent (varredura de uma raiz) compartilham o MESMO `parentPath`,
+  então as duas linhas saem iguais e o problema continua. Use sempre
+  `getPathDirectory(workspace.path)` (`src/utils/path-utils.ts`).
+- Para ver isso no `dev:mock` é preciso semear **também** `/api/file/search_subdirs`
+  (`src/mocks/file-service-handlers.ts`) — o dropdown agrupa pelos parents
+  varridos, e não pela lista estática de `/api/workspaces`.
+
+## Rail do Canvas sem as entradas Quadro/Sistema (2026-09-17)
+
+- `src/components/features/sidebar/sidebar-rail-body.tsx` não tem mais as duas
+  entradas de fork: `/board` (`sidebar-board-link`, sprint kanban-3-niveis-03) e
+  `/settings/system` (`sidebar-system-link` / `sidebar-collapsed-system-link`,
+  sprints sistema-settings-menu-03 + kanban-sistema-v2-01).
+- As **rotas continuam existindo e roteáveis** (`/board`, `/settings/system`, e
+  o item "Sistema" segue em `OSS_NAV_ITEMS`): removê-las é outra decisão, não
+  reverta essa remoção de nav sem confirmar com o usuário.
+- Testes: `__tests__/components/features/sidebar/sidebar.test.tsx` agora assere
+  a **ausência** dos test-ids (expandido e colapsado) — não reintroduza os
+  testes de posicionamento.
+
 ## Delegar tracers ao MiniMax (`claude-m3`) funciona neste host
 
 - `/root/bin/claude-m3` existe e responde; **não** há `pwsh`, então o módulo

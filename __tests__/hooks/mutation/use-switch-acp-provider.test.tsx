@@ -68,25 +68,27 @@ describe("useSwitchAcpProvider", () => {
     vi.restoreAllMocks();
   });
 
-  it("rejects profiles that are not ACP", async () => {
+  it("accepts OpenHands profiles (e.g. Verboo-bound) as fork targets", async () => {
+    createConversationMock.mockResolvedValue({ conversationId: "new-conv" });
+
     const { result } = renderHook(() => useSwitchAcpProvider(), { wrapper });
 
     result.current.mutate({
       sourceConversationId: "src",
       targetProfile: {
-        id: "p1",
-        name: "OpenHands profile",
+        id: "p-oh",
+        name: "Verboo-bound",
         agent_kind: "openhands",
         revision: 1,
-        llm_profile_ref: null,
+        llm_profile_ref: "verboo-llm",
         mcp_server_refs: null,
       },
     });
 
-    await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(result.current.error?.message).toMatch(/not ACP/i);
-    expect(createConversationMock).not.toHaveBeenCalled();
-    expect(navigateMock).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(createConversationMock).toHaveBeenCalledTimes(1);
+    expect(createConversationMock.mock.calls[0][0].agentProfileId).toBe("p-oh");
+    expect(navigateMock).toHaveBeenCalledWith("new-conv");
   });
 
   it("rejects profiles without a stable id", async () => {

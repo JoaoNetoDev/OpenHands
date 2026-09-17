@@ -104,7 +104,7 @@ describe("SwitchAcpProviderButton", () => {
     expect(screen.getByTestId("switch-acp-provider-trigger")).toHaveTextContent("Claude Code");
   });
 
-  it("filters out non-ACP profiles and the active one from the menu", async () => {
+  it("includes OpenHands profiles and filters only the active one", async () => {
     mockCanShow.mockReturnValue(true);
     mockProfiles.mockReturnValue({
       profiles: [profileActive, profileOther, profileOpenHands],
@@ -116,11 +116,16 @@ describe("SwitchAcpProviderButton", () => {
     await waitFor(() => {
       expect(screen.getByTestId("switch-acp-provider-menu")).toBeInTheDocument();
     });
+    // Active profile is filtered out so we never render "switch to yourself".
     expect(screen.queryByTestId("switch-acp-provider-option-p-active")).toBeNull();
-    expect(screen.queryByTestId("switch-acp-provider-option-p-oh")).toBeNull();
+    // Other ACP profile is shown.
     expect(
       screen.getByTestId("switch-acp-provider-option-p-other"),
     ).toBeInTheDocument();
+    // OpenHands profiles (e.g. one bound to the Verboo LLM profile) are
+    // first-class fork targets too — the user's mental model is "switch to
+    // another model", not "switch to another subprocess wrapper".
+    expect(screen.getByTestId("switch-acp-provider-option-p-oh")).toBeInTheDocument();
   });
 
   it("invokes the switch callback when a profile is picked", async () => {
