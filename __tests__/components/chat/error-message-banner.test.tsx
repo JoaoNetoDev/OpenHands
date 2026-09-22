@@ -103,7 +103,7 @@ describe("ErrorMessageBanner", () => {
     );
 
     expect(screen.getByTestId("warning-message-banner-icon")).toHaveClass(
-      "text-[var(--oh-warning)]",
+      "text-warning",
     );
   });
 
@@ -145,8 +145,8 @@ describe("ErrorMessageBanner", () => {
     render(<ErrorMessageBanner message="Something went wrong" />);
 
     const banner = screen.getByTestId("error-message-banner");
-    expect(banner.className).toContain("border-[var(--oh-border)]");
-    expect(banner.className).toContain("bg-[var(--oh-surface-raised)]");
+    expect(banner.className).toContain("border-border");
+    expect(banner.className).toContain("bg-surface-raised");
     expect(banner.className).not.toContain("#FF0006");
     expect(banner.className).not.toContain("#4A0709");
   });

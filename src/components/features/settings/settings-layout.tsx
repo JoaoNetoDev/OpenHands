@@ -32,9 +32,7 @@ export function SettingsLayout({
             <div className="sticky top-0 z-10 bg-base md:static">{header}</div>
           ) : null}
           <main className={settingsLayoutMainScrollClassName}>
-            <div className="mx-auto w-full min-w-0 max-w-[800px]">
-              {children}
-            </div>
+            <div className="mx-auto w-full min-w-0 max-w-200">{children}</div>
           </main>
         </div>
       </div>

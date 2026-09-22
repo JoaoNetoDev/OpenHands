@@ -79,7 +79,7 @@ export default function CanvasExtensionsScreen() {
   return (
     <ExtensionsPageLayout
       header={
-        <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
+        <div className="mx-auto flex w-full min-w-0 max-w-200 flex-col gap-6">
           <div className="flex min-w-0 items-start justify-between gap-4">
             <div className="min-w-0 space-y-1">
               <h2 className="text-xl font-semibold leading-6 text-foreground">
@@ -118,7 +118,7 @@ export default function CanvasExtensionsScreen() {
         </div>
       }
     >
-      <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
+      <div className="mx-auto flex w-full min-w-0 max-w-200 flex-col gap-6">
         <h3 className="text-base font-semibold text-foreground">
           {t(I18nKey.SETTINGS$APPS_INSTALLED)}
         </h3>

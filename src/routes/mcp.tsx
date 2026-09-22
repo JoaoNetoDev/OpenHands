@@ -108,7 +108,7 @@ export default function MCPPage() {
   return (
     <ExtensionsPageLayout
       header={
-        <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
+        <div className="mx-auto flex w-full min-w-0 max-w-200 flex-col gap-6">
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
@@ -140,7 +140,7 @@ export default function MCPPage() {
         </div>
       }
     >
-      <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
+      <div className="mx-auto flex w-full min-w-0 max-w-200 flex-col gap-6">
         {sectionFilter !== "library" ? (
           <section className="flex flex-col gap-3">
             <h2 className="text-base font-semibold text-foreground">

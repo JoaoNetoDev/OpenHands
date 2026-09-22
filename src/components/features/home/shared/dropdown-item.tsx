@@ -55,8 +55,8 @@ export function DropdownItem<T>({
       "text-white focus:outline-none font-normal",
       dropdownInstantColorClassName,
       {
-        "bg-[var(--oh-interactive-selected)] text-white": isSelected,
-        "hover:bg-[var(--oh-interactive-hover)]": !isSelected,
+        "bg-interactive-selected text-white": isSelected,
+        "hover:bg-interactive-hover": !isSelected,
       },
       itemClassName,
     ),

@@ -217,7 +217,7 @@ export function LocalNewConversationMenu({
         >
           <ul
             className={cn(
-              "max-h-[40vh] overflow-y-auto sm:max-h-[280px]",
+              "max-h-[40vh] overflow-y-auto sm:max-h-70",
               dropdownMenuListClassName,
             )}
           >
@@ -229,7 +229,7 @@ export function LocalNewConversationMenu({
                 onClick={() => launch()}
                 className={itemClass}
               >
-                <span className="text-[var(--oh-muted)]">
+                <span className="text-muted">
                   {t(I18nKey.HOME$NO_WORKSPACE_OPTION)}
                 </span>
               </button>

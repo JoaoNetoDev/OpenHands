@@ -122,7 +122,7 @@ export default function SkillsPluginsScreen() {
   return (
     <ExtensionsPageLayout
       header={
-        <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
+        <div className="mx-auto flex w-full min-w-0 max-w-200 flex-col gap-6">
           <div className="flex min-w-0 items-start justify-between gap-4">
             <div className="min-w-0 space-y-1">
               <h2 className="text-xl font-semibold leading-6 text-foreground">
@@ -158,7 +158,7 @@ export default function SkillsPluginsScreen() {
         </div>
       }
     >
-      <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
+      <div className="mx-auto flex w-full min-w-0 max-w-200 flex-col gap-6">
         {isLoading && (
           <div className="flex flex-col gap-4">
             {[1, 2, 3].map((i) => (
