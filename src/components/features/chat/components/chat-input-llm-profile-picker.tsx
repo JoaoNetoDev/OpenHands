@@ -175,7 +175,11 @@ export function ChatInputLlmProfileMenuContent({
               event.stopPropagation();
               handleSelectEffort(null);
             }}
-            isDisabled={effortState.isSwitching}
+            // Items render as soon as the conversation exists, but stay
+            // disabled until the active profile resolves (the picker pops in
+            // immediately at conversation start instead of after the first
+            // turn). Clicking a disabled item is a no-op via `selectEffort`.
+            isDisabled={effortState.isSwitching || !currentProfileName}
             className={cn(
               "flex items-center gap-2",
               effortState.currentEffort === null &&
@@ -205,7 +209,7 @@ export function ChatInputLlmProfileMenuContent({
                   event.stopPropagation();
                   handleSelectEffort(effort);
                 }}
-                isDisabled={effortState.isSwitching}
+                isDisabled={effortState.isSwitching || !currentProfileName}
                 className={cn(
                   "flex items-center gap-2",
                   isCurrent && "bg-[var(--oh-interactive-hover)]",

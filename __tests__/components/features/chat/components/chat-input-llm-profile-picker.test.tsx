@@ -156,4 +156,30 @@ describe("ChatInputLlmProfilePicker", () => {
       container.ownerDocument.querySelector('a[href="/settings/llm"]'),
     ).not.toBeNull();
   });
+
+  it("shows the reasoning-effort picker at conversation start even before the active profile resolves", () => {
+    // Regression for "effort picker missing at conversation start": with no
+    // current profile yet, the picker used to stay hidden until the first turn
+    // stamped `active_profile` on the conversation. It should render
+    // immediately, with its items disabled until a profile lands.
+    useChatInputLlmProfileStateMock.mockReturnValue(
+      state({ currentProfileName: null }),
+    );
+
+    renderWithProviders(<ChatInputLlmProfilePicker />);
+    fireEvent.click(screen.getByTestId("chat-input-llm-profile"));
+
+    // The picker renders (header is the effort label, options are the test
+    // ids defined in use-chat-input-reasoning-effort-state).
+    expect(
+      screen.getByTestId("chat-input-reasoning-effort-option-default"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("chat-input-reasoning-effort-option-medium"),
+    ).toBeInTheDocument();
+    // …and stays disabled, because selectEffort is a no-op without a profile.
+    expect(
+      screen.getByTestId("chat-input-reasoning-effort-option-medium"),
+    ).toBeDisabled();
+  });
 });

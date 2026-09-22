@@ -17,7 +17,18 @@ export function BtwMessages({ conversationId }: BtwMessagesProps) {
   if (!conversationId || entries.length === 0) return null;
 
   return (
-    <div data-testid="btw-messages" className="flex flex-col w-full">
+    <div
+      data-testid="btw-messages"
+      // Cap height + internal scroll: a long /btw response (e.g. a markdown
+      // table) would otherwise grow the sibling `InteractiveChatBox` (the
+      // composer/textarea) below the visible viewport, hiding it entirely.
+      // The companion parent in chat-interface.tsx is `shrink-0`, so this
+      // sized-by-content behavior is exactly what tipped the textarea off-
+      // screen — see the bug report ("BTW questions hide the textarea and
+      // don't scroll"). The cap is viewport-relative so it scales with the
+      // chat panel.
+      className="custom-scrollbar-always flex max-h-[40vh] flex-col w-full overflow-y-auto"
+    >
       {entries.map((entry) => {
         const isPending = entry.status === "pending";
         return (

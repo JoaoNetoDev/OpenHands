@@ -21,8 +21,10 @@ export const REASONING_EFFORT_OPTIONS: ReasoningEffort[] = [
 export interface ChatInputReasoningEffortState {
   /**
    * Whether the picker should render at all. False on cloud backends (no
-   * server-side switch endpoint yet), outside a conversation, or when the
-   * running conversation's LLM profile isn't known.
+   * server-side switch endpoint yet) or outside a conversation. Independent of
+   * the active profile being known — at conversation start the profile is
+   * resolved lazily (stamped metadata + model match + account default), so the
+   * picker renders immediately and disables its items until that lands.
    */
   isAvailable: boolean;
   /** `null` means "use the profile's / global default effort". */
@@ -48,8 +50,13 @@ export function useChatInputReasoningEffortState(
   const isSwitching =
     useIsMutating({ mutationKey: SWITCH_REASONING_EFFORT_MUTATION_KEY }) > 0;
 
-  const isAvailable =
-    backend.kind !== "cloud" && !!conversationId && !!profileName;
+  // Show the picker as soon as we're in a conversation on a local backend —
+  // the active profile is resolved lazily, and gating on `profileName` made
+  // the picker pop in only after the first turn (the conversation's stamped
+  // active_profile is set by the agent's first response). Consumers should
+  // disable individual items while `profileName` is still null — `selectEffort`
+  // is a no-op until then.
+  const isAvailable = backend.kind !== "cloud" && !!conversationId;
 
   const selectEffort = (effort: ReasoningEffort | null) => {
     if (!isAvailable || !conversationId || !profileName) return;
